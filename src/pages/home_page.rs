@@ -8,7 +8,7 @@ use leptos_meta::*;
 pub fn HomePage(cx: Scope) -> impl IntoView {
     // Creates a reactive value to update the button
     let (count, set_count) = create_signal(cx, 0);
-    let (board, _set_board) = create_signal(cx, Board::new());
+    let (board, update_board) = create_signal(cx, Board::new());
     let on_click = move |_| set_count.update(|count| *count += 1);
 
     view! { cx,
@@ -16,7 +16,7 @@ pub fn HomePage(cx: Scope) -> impl IntoView {
         <h1>"Welcome to Hex chess!"</h1>
         <button on:click=on_click>"Click Me: " {count}</button>
         <div class="board">
-            <DrawBoard board/>
+            <DrawBoard board update_board/>
         </div>
     }
 }

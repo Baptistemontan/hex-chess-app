@@ -67,6 +67,10 @@ $block: '.hex-grid';
 		&__hide {
 			opacity: 0;
 		}
+
+		&__is_piece {
+			cursor: pointer;
+		}
     }
 
     &__content {
@@ -96,6 +100,9 @@ $block: '.hex-grid';
 		}
 		&__white {
 			background-color: #ffcf9f;
+		}
+		&__selected {
+			background-color: #bbcb2b;
 		}
     }
 }
