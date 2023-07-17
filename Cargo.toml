@@ -18,6 +18,7 @@ leptos_actix = { version = "0.4", optional = true }
 leptos_router = { version = "0.4", features = ["nightly"] }
 wasm-bindgen = "=0.2.87"
 hex-chess-core = { path = "../hex-chess-core" }
+serde = { version = "1", features = ["derive"] }
 
 [features]
 default = ["ssr"]
