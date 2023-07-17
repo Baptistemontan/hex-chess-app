@@ -3,7 +3,7 @@
 async fn main() -> std::io::Result<()> {
     use actix_files::Files;
     use actix_web::*;
-    use hex_chess_app::app::*;
+    use hex_chess_app::pages::App;
     use leptos::*;
     use leptos_actix::{generate_route_list, LeptosRoutes};
 
