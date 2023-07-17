@@ -2,3 +2,105 @@ body {
 	font-family: sans-serif;
 	text-align: center;
 }
+
+@mixin no-select {
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+
+	-webkit-touch-callout: none;
+	-ms-text-size-adjust: none;
+	-webkit-text-size-adjust: none;
+	-webkit-tap-highlight-color: rgba(0,0,0,0);
+}
+
+.board {
+	// display: flex;
+	width: 50%;
+}
+
+$block: '.hex-grid';
+
+@mixin grid-item($amount) {
+    @for $i from 1 through $amount {
+        &:nth-of-type(#{$amount}n + #{$i}) {
+            grid-column: #{$i + $i - 1} / span 3;
+            @if $i % 2 == 0 {
+                grid-row: calc(var(--counter) + var(--counter) - 1) / span 2;
+            }
+        }
+    }
+
+    @for $i from 0 through $amount - 1 {
+        &:nth-of-type(n + #{$i * $amount + 1}) {
+            --counter: #{$i + 1};
+        }
+    }
+}
+
+#{$block} {
+    display: flex;
+	justify-content: center;
+
+    &__list {
+        --amount: 11;
+		--counter: 11;
+        position: relative;
+        padding: 0;
+		margin: 0;
+		list-style-type: none;
+		display: grid;
+        grid-template-columns: repeat(var(--amount), 1fr 2fr) 1fr;
+		// grid-gap: .05rem 0.1rem;
+    }
+
+    &__item {
+        position: relative;
+		grid-column: 1 / span 3;
+		grid-row: calc(var(--counter) + var(--counter)) / span 2;
+		// filter: drop-shadow(0 0 10px rgba(#444, .08));
+		height: 0;
+		padding-bottom: 90%;
+		@include grid-item(11);
+
+		&__hide {
+			opacity: 0;
+		}
+    }
+
+    &__content {
+		@include no-select();
+
+        position: absolute;
+		height: 100%;
+		width: 100%;
+		font-size: 1.125rem;
+		color: #111111;
+		clip-path: polygon(75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%, 25% 0);
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		align-items: center;
+		// padding: 2rem 25%;
+		text-decoration: none;
+		text-align: center;
+		transition: transform .24s ease-out;
+
+		&__black {
+			color: white;
+			background-color: #d28c45;
+		}
+		&__grey {
+			background-color: #e9ad70;
+		}
+		&__white {
+			background-color: #ffcf9f;
+		}
+    }
+}
+
+.piece_image {
+	height: auto;
+	max-width: 70%;
+}
