@@ -17,7 +17,7 @@ body {
 
 .board {
 	// display: flex;
-	width: 50%;
+	width: 80%;
 }
 
 $block: '.hex-grid';
@@ -103,6 +103,26 @@ $block: '.hex-grid';
 		}
 		&__selected {
 			background-color: #bbcb2b;
+		}
+		&__is_dest::after {
+			position: absolute;
+			content: "";
+			width: 15%;
+			height: 17%;
+			background-color: #111111;
+			opacity: 0.5;
+			border-radius: 50%;
+			display: inline-block;
+		}
+		&__is_piece_and_dest::after {
+			position: absolute;
+			content: "";
+			width: 55%;
+			height: 63%;
+			opacity: 0.5;
+			border-radius: 50%;
+			display: inline-block;
+			border: 7px solid #111111;
 		}
     }
 }

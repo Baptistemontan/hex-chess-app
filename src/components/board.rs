@@ -1,7 +1,8 @@
 use std::collections::HashSet;
 
-use hex_chess_core::{board::Board, hex_coord::HexVector, mov::MaybePromoteMove};
+use hex_chess_core::{board::Board, hex_coord::HexVector, mov::MaybePromoteMove, piece::PieceKind};
 use leptos::*;
+
 // use leptos_meta::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -73,7 +74,7 @@ where
 
     let piece_image_url = create_memo(cx, move |_| {
         piece.get().map(|piece| {
-            use hex_chess_core::piece::{Color, PieceKind};
+            use hex_chess_core::piece::Color;
             let color = match piece.color {
                 Color::Black => 'b',
                 Color::White => 'w',
@@ -97,6 +98,7 @@ where
             .get()
             .is_some_and(|moves| moves.iter().any(|mov| mov.to() == vector))
     });
+    let is_piece_and_dest = move || piece.get().is_some() && is_move_dest.get();
 
     let on_click = move |_| {
         on_select(vector);
@@ -107,7 +109,6 @@ where
             class="hex-grid__item"
             class=("hex-grid__item__hide", hide)
             class=("hex-grid__item__is_piece", move || piece.get().is_some())
-            class=("hex-grid__item__is_dest", is_move_dest)
             on:click=on_click
         >
             <div
@@ -116,6 +117,8 @@ where
                 class=("hex-grid__content__grey", move || color == Color::Grey && !selected())
                 class=("hex-grid__content__white", move || color == Color::White && !selected())
                 class=("hex-grid__content__selected", selected)
+                class=("hex-grid__content__is_dest", move || is_move_dest.get() && !is_piece_and_dest())
+                class=("hex-grid__content__is_piece_and_dest", is_piece_and_dest)
             >
                 {move || piece_image_url.get().map(|url| {
                     // println!("{}", url);
@@ -135,21 +138,22 @@ pub fn DrawBoard(
     update_board: WriteSignal<Board>,
 ) -> impl IntoView {
     let (selected, set_selected) = create_signal(cx, None);
+    let (_can_promote, set_can_promote) = create_signal(cx, None);
+
+    let play_move = move |from: HexVector, to: HexVector, promote: Option<PieceKind>| {
+        update_board.update(|board| match board.play_move(from, to, promote) {
+            Ok(None) => set_selected.set(None),
+            Ok(Some(promote)) => set_can_promote.set(Some(promote)),
+            Err(err) => log!("invalid move: {:?}", err),
+        })
+    };
 
     let on_select = move |pos: HexVector| {
         let (target_piece, turn) =
             board.with(|board| (board.get_piece_at(pos), board.get_player_turn()));
         match (selected.get(), target_piece) {
-            (_, Some(piece)) if piece.color == turn => {
-                set_selected(Some(pos));
-            }
-            (Some(selected), _) => {
-                update_board.update(|board| match board.play_move(selected, pos, None) {
-                    Ok(None) => log!("success move"),
-                    Ok(Some(_)) => log!("can promote"),
-                    Err(err) => log!("error: {:?}", err),
-                })
-            }
+            (_, Some(piece)) if piece.color == turn => set_selected(Some(pos)),
+            (Some(selected), _) => play_move(selected, pos, None),
             (None, _) => (),
         }
     };
