@@ -4,6 +4,6 @@ services:
     image: hex-chess-app
     build: 
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     ports:
       - "3000:3000"
