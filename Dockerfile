@@ -9,11 +9,10 @@ RUN cargo leptos build --release
 FROM ubuntu:latest
 COPY --from=builder /dist/target/site /site
 COPY --from=builder /dist/target/server/release/hex-chess-app /hex-chess-app
-ARG PORT
+COPY --from=builder /dist/start.sh /start.sh
 ENV LEPTOS_OUTPUT_NAME="hex-chess-app"
 ENV LEPTOS_SITE_ROOT="site"
 ENV LEPTOS_SITE_PKG_DIR="pkg"
-ENV LEPTOS_SITE_ADDR="0.0.0.0:${PORT}"
 ENV LEPTOS_RELOAD_PORT="3001"
-ENTRYPOINT ["/hex-chess-app"]
-EXPOSE 3000
+ENTRYPOINT ["/start.sh"]
+EXPOSE ${PORT}

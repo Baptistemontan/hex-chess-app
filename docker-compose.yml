@@ -2,6 +2,8 @@ version: '3'
 services:
   server:
     image: hex-chess-app
+    environment:
+      - PORT=3000
     build: 
       context: .
       dockerfile: Dockerfile
