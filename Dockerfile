@@ -10,9 +10,10 @@ FROM ubuntu:latest
 COPY --from=builder /dist/target/site /site
 COPY --from=builder /dist/target/server/release/hex-chess-app /hex-chess-app
 COPY --from=builder /dist/start.sh /start.sh
+ENV RUST_LOG="info"
 ENV LEPTOS_OUTPUT_NAME="hex-chess-app"
 ENV LEPTOS_SITE_ROOT="site"
-ENV LEPTOS_SITE_PKG_DIR="pkg"
-ENV LEPTOS_RELOAD_PORT="3001"
+ENV APP_ENVIRONMENT="production"
+RUN chmod 777 /start.sh
 ENTRYPOINT ["/start.sh"]
 EXPOSE ${PORT}
