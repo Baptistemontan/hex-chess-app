@@ -15,6 +15,19 @@ enum HexColor {
     Black,
     Grey,
     White,
+    Selected,
+}
+
+impl HexColor {
+    pub const COLORS: [Self; 3] = [HexColor::Black, HexColor::Grey, HexColor::White];
+
+    fn reverse(self) -> Self {
+        match self {
+            HexColor::Black => HexColor::White,
+            HexColor::White => HexColor::Black,
+            _ => self,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,9 +38,9 @@ enum Orientation {
 
 impl Orientation {
     pub fn reverse_assign(&mut self) {
-        match self {
-            Orientation::Normal => *self = Orientation::Reversed,
-            Orientation::Reversed => *self = Orientation::Normal,
+        *self = match self {
+            Orientation::Normal => Orientation::Reversed,
+            Orientation::Reversed => Orientation::Normal,
         }
     }
 }
@@ -45,7 +58,7 @@ impl GridIterator {
             q: -5,
             r: -2,
             line: 0,
-            colors: [HexColor::Black, HexColor::Grey, HexColor::White],
+            colors: HexColor::COLORS,
         }
     }
 }
@@ -114,13 +127,22 @@ where
             -vector
         }
     };
+
+    let color = move || {
+        if selected.get().is_some_and(|pos| pos == vector()) {
+            HexColor::Selected
+        } else if orientation.get() == Orientation::Normal {
+            color
+        } else {
+            color.reverse()
+        }
+    };
+
     let hide = move || vector().mag() > 5;
 
     let piece = create_memo(cx, move |_| board.get().get_piece_at(vector()));
 
     let piece_image_url = create_memo(cx, move |_| piece.get().map(get_piece_url));
-
-    let selected = move || selected.get().is_some_and(|pos| pos == vector());
 
     let is_move_dest = create_memo(cx, move |_| {
         legal_moves
@@ -152,15 +174,14 @@ where
         >
             <div
                 class="hex-grid__content"
-                class=("hex-grid__content__black", move || color == HexColor::Black && !selected())
-                class=("hex-grid__content__grey", move || color == HexColor::Grey && !selected())
-                class=("hex-grid__content__white", move || color == HexColor::White && !selected())
-                class=("hex-grid__content__selected", selected)
+                class=("hex-grid__content__black", move || color() == HexColor::Black)
+                class=("hex-grid__content__grey", move || color() == HexColor::Grey)
+                class=("hex-grid__content__white", move || color() == HexColor::White)
+                class=("hex-grid__content__selected", move || color() == HexColor::Selected)
                 class=("hex-grid__content__is_dest", move || is_move_dest.get() && !is_piece_and_dest())
                 class=("hex-grid__content__is_piece_and_dest", is_piece_and_dest)
             >
                 {move || piece_image_url.get().map(|url| {
-                    // println!("{}", url);
                     view! { cx,
                         <img class="piece_image" src=url />
                     }
@@ -252,7 +273,7 @@ fn DrawHexBoard(
 
     view! { cx,
         <ul class="hex-grid__list">
-        {GridIterator::new().map(|(vector, color)| hexagon(cx, vector, color, board.read_only(), selected, on_select, current_legal_moves, orientation, can_promote)).collect_view(cx)}
+        {move || GridIterator::new().map(|(vector, color)| hexagon(cx, vector, color, board.read_only(), selected, on_select, current_legal_moves, orientation, can_promote)).collect_view(cx)}
         </ul>
     }
 }
