@@ -114,6 +114,7 @@ $block: '.hex-grid';
 			opacity: 0.5;
 			border-radius: 50%;
 			display: inline-block;
+			cursor: pointer;
 		}
 		&__is_piece_and_dest::after {
 			position: absolute;
@@ -131,4 +132,24 @@ $block: '.hex-grid';
 .piece_image {
 	height: auto;
 	max-width: 70%;
+}
+
+.promote {
+	cursor: pointer;
+	position: absolute;
+	z-index: 2;
+	height: 400%;
+	width: 100%;
+	font-size: 1.125rem;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-around;
+	align-items: center;
+	background-color: white;
+	border: 1px gray solid;
+
+	&__reversed {
+		flex-direction: column-reverse;
+		bottom: 0;
+	}
 }
