@@ -3,7 +3,7 @@
 async fn main() -> std::io::Result<()> {
     use actix_files::Files;
     use actix_web::*;
-    use hex_chess_app::pages::App;
+    use hex_chess_app::{pages::App, server::server::start_game};
     use leptos::*;
     use leptos_actix::{generate_route_list, LeptosRoutes};
 
@@ -19,6 +19,7 @@ async fn main() -> std::io::Result<()> {
         let site_root = &leptos_options.site_root;
 
         App::new()
+            .service(start_game)
             .route("/api/{tail:.*}", leptos_actix::handle_server_fns())
             // serve JS/WASM/CSS from `pkg`
             .service(Files::new("/pkg", format!("{site_root}/pkg")))

@@ -19,11 +19,13 @@ leptos_router = { version = "0.4", features = ["nightly"] }
 wasm-bindgen = "=0.2.87"
 serde = { version = "1", features = ["derive"] }
 hex-chess-core = { git = "https://github.com/Baptistemontan/hex-chess-core" }
-broadcaster = { version = "1", optional = true }
+# hex-chess-core = { path = "../hex-chess-core" }
 lazy_static = { version = "1", optional = true }
 futures = "0.3"
 serde_json = "1"
 uuid = { version = "1", features = ["serde", "v4"] }
+gloo-net = { git = "https://github.com/rustwasm/gloo" }
+actix-web-lab = { version = "0.19", optional = true }
 
 [features]
 default = ["ssr"]
@@ -33,8 +35,8 @@ ssr = [
   "dep:actix-files",
   "dep:actix-web",
   "dep:leptos_actix",
-  "dep:broadcaster",
   "dep:lazy_static",
+  "dep:actix-web-lab",
   "leptos/ssr",
   "leptos_meta/ssr",
   "leptos_router/ssr",

@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use hex_chess_core::{
     board::Board as HexBoard,
     hex_coord::HexVector,
@@ -7,6 +5,10 @@ use hex_chess_core::{
     piece::{Color as PieceColor, Piece, PieceKind},
 };
 use leptos::*;
+use std::collections::HashSet;
+use uuid::Uuid;
+
+use crate::server::{GameEvent, PlayMove};
 
 // use leptos_meta::*;
 
@@ -235,34 +237,17 @@ where
     }
 }
 
-#[component]
-fn DrawHexBoard(
+fn draw_hex_board<OS>(
     cx: Scope,
-    board: RwSignal<HexBoard>,
+    board: ReadSignal<HexBoard>,
     orientation: ReadSignal<Orientation>,
-) -> impl IntoView {
-    let (selected, set_selected) = create_signal(cx, None);
-    let (can_promote, set_can_promote) = create_signal(cx, None);
-
-    let play_move = move |from: HexVector, to: HexVector, promote: Option<PieceKind>| {
-        board.update(|board| match board.play_move(from, to, promote) {
-            Ok(None) => set_selected.set(None),
-            Ok(Some(promote)) => set_can_promote.set(Some(promote)),
-            Err(err) => log!("invalid move: {:?}", err),
-        })
-    };
-
-    let on_select = move |pos: HexVector, promote_to: Option<PieceKind>| {
-        let (target_piece, turn) =
-            board.with(|board| (board.get_piece_at(pos), board.get_player_turn()));
-        set_can_promote.set(None);
-        match (selected.get(), target_piece) {
-            (_, Some(piece)) if piece.color == turn => set_selected(Some(pos)),
-            (Some(selected), _) => play_move(selected, pos, promote_to),
-            (None, _) => (),
-        }
-    };
-
+    selected: ReadSignal<Option<HexVector>>,
+    can_promote: ReadSignal<Option<CanPromoteMove>>,
+    on_select: OS,
+) -> impl IntoView
+where
+    OS: Fn(HexVector, Option<PieceKind>) + Copy + 'static,
+{
     let legal_moves = create_memo(cx, move |_| board.get().get_legal_moves());
 
     let current_legal_moves = create_memo(cx, move |_| {
@@ -273,21 +258,161 @@ fn DrawHexBoard(
 
     view! { cx,
         <ul class="hex-grid__list">
-        {move || GridIterator::new().map(|(vector, color)| hexagon(cx, vector, color, board.read_only(), selected, on_select, current_legal_moves, orientation, can_promote)).collect_view(cx)}
+        {move || GridIterator::new().map(|(vector, color)| hexagon(cx, vector, color, board, selected, on_select, current_legal_moves, orientation, can_promote)).collect_view(cx)}
         </ul>
     }
 }
 
-#[component]
-pub fn Board(cx: Scope, board: RwSignal<HexBoard>) -> impl IntoView {
+fn orientation_manager<OS>(
+    cx: Scope,
+    board: ReadSignal<HexBoard>,
+    selected: ReadSignal<Option<HexVector>>,
+    player_color: impl Fn() -> PieceColor + 'static,
+    can_promote: ReadSignal<Option<CanPromoteMove>>,
+    on_select: OS,
+) -> impl IntoView
+where
+    OS: Fn(HexVector, Option<PieceKind>) + Copy + 'static,
+{
     let (orientation, set_orientation) = create_signal(cx, Orientation::Normal);
-
+    create_effect(cx, move |_| {
+        let orientation = match player_color() {
+            PieceColor::Black => Orientation::Reversed,
+            PieceColor::White => Orientation::Normal,
+        };
+        set_orientation.set(orientation);
+    });
     let on_switch = move |_| set_orientation.update(Orientation::reverse_assign);
 
     view! { cx,
         <div>
-            <DrawHexBoard board orientation/>
+            {draw_hex_board(cx, board, orientation, selected, can_promote, on_select)}
             <button on:click=on_switch>"switch side"</button>
         </div>
     }
+}
+
+#[cfg(not(feature = "ssr"))]
+fn subscribe_to_events(cx: Scope) -> ReadSignal<Option<GameEvent>> {
+    use futures::StreamExt;
+    let mut source = gloo_net::eventsource::futures::EventSource::new("/api/start_game").unwrap();
+    log!("test");
+    let stream = source.subscribe("message").unwrap().map(|value| {
+        let (_, event) = value.unwrap();
+        let data = event.data().as_string().unwrap();
+        log!("event data: {:?}", data);
+        let event: GameEvent = serde_json::from_str(&data).unwrap();
+        event
+    });
+    let s = create_signal_from_stream(cx, stream);
+    on_cleanup(cx, move || source.close());
+    s
+}
+
+#[cfg(feature = "ssr")]
+fn subscribe_to_events(cx: Scope) -> ReadSignal<Option<GameEvent>> {
+    create_signal(cx, None).0
+}
+
+#[component]
+pub fn Board(cx: Scope) -> impl IntoView {
+    let events = subscribe_to_events(cx);
+    let (event, set_event) = create_signal(cx, None);
+    create_effect(cx, move |_| set_event.set(events.get()));
+    let clear_event = move || set_event.set(None);
+
+    let (selected, set_selected) = create_signal(cx, None);
+    let (dest, set_dest) = create_signal(cx, None);
+    let (can_promote, set_can_promote) = create_signal(cx, None);
+    let (board, set_board) = create_signal(cx, HexBoard::new());
+
+    let player_infos = create_memo(
+        cx,
+        move |old_infos: Option<&(PieceColor, Option<(Uuid, Uuid)>)>| match (
+            events.get(),
+            old_infos,
+        ) {
+            (
+                Some(GameEvent::GameStart {
+                    game_id,
+                    player_id,
+                    player_color,
+                }),
+                _,
+            ) => (player_color, Some((game_id, player_id))),
+            (_, Some(old_infos)) => *old_infos,
+            _ => (PieceColor::White, None),
+        },
+    );
+
+    let player_color = move || player_infos.get().0;
+
+    let play_server_move = create_server_action::<PlayMove>(cx);
+
+    let on_select = move |pos: HexVector, promote_to: Option<PieceKind>| {
+        let (color, ids) = player_infos.get();
+        if ids.is_none() {
+            return;
+        }
+        let (target_piece, is_turn) =
+            board.with(|board| (board.get_piece_at(pos), board.get_player_turn() == color));
+        if !is_turn {
+            return;
+        }
+        match (selected.get(), target_piece) {
+            (_, Some(piece)) if piece.color == color => {
+                set_selected.set(Some(pos));
+                set_dest.set(None);
+            }
+            (Some(_), _) => {
+                set_dest.set(Some((pos, promote_to)));
+            }
+            (None, _) => (),
+        }
+    };
+
+    create_effect(cx, move |_| {
+        let (color, ids) = player_infos.get();
+        let from = selected.get();
+        let to = dest.get();
+        let event = event.get();
+        if let Some(GameEvent::OpponentPlayedMove {
+            from,
+            to,
+            promote_to,
+        }) = event
+        {
+            clear_event();
+            set_board.update(|board| {
+                board.play_move(from, to, promote_to).unwrap();
+            });
+        }
+        if board.with(|board| board.get_player_turn() != color) {
+            return;
+        }
+        if let (Some((game_id, player_id)), Some(from), Some((to, promote_to))) = (ids, from, to) {
+            let mut move_res = Ok(None);
+            set_board.update(|board| {
+                move_res = board.play_move(from, to, promote_to);
+            });
+            match move_res {
+                Ok(Some(promote_move)) => set_can_promote.set(Some(promote_move)),
+                Ok(None) => {
+                    set_can_promote.set(None);
+                    set_dest.set(None);
+                    set_selected.set(None);
+                    play_server_move.dispatch(PlayMove {
+                        game_id,
+                        player_id,
+                        from,
+                        to,
+                        promote_to,
+                    });
+                }
+                _ => (),
+            }
+        }
+    });
+
+    orientation_manager(cx, board, selected, player_color, can_promote, on_select)
 }
