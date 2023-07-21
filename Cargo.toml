@@ -24,13 +24,13 @@ lazy_static = { version = "1", optional = true }
 futures = "0.3"
 serde_json = "1"
 uuid = { version = "1", features = ["serde", "v4"] }
-gloo-net = { git = "https://github.com/rustwasm/gloo" }
+gloo-net = { git = "https://github.com/rustwasm/gloo", optional = true }
 actix-web-lab = { version = "0.19", optional = true }
 
 [features]
-default = ["ssr"]
+default = ["ssr", "hydrate"]
 csr = ["leptos/csr", "leptos_meta/csr", "leptos_router/csr"]
-hydrate = ["leptos/hydrate", "leptos_meta/hydrate", "leptos_router/hydrate"]
+hydrate = ["leptos/hydrate", "leptos_meta/hydrate", "leptos_router/hydrate", "dep:gloo-net"]
 ssr = [
   "dep:actix-files",
   "dep:actix-web",
