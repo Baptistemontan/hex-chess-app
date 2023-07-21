@@ -228,7 +228,9 @@ impl Games {
             }
         }
 
-        println!("removed games {:?}", to_remove);
+        if !to_remove.is_empty() {
+            println!("removed games {:?}", to_remove);
+        }
 
         games.retain(|id, _| !to_remove.contains(id));
     }
@@ -242,7 +244,7 @@ async fn remove_stale_games() {
     let mut interval = actix_web::rt::time::interval(Duration::from_secs(10));
     loop {
         interval.tick().await;
-        GAMES.remove_stale_games().await
+        GAMES.remove_stale_games().await;
     }
 }
 
