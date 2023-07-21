@@ -6,7 +6,6 @@ use hex_chess_core::{
 };
 use leptos::*;
 use std::collections::HashSet;
-use uuid::Uuid;
 
 use crate::server::{GameEvent, PlayMove};
 
@@ -292,15 +291,27 @@ where
     }
 }
 
-#[cfg(not(feature = "ssr"))]
-fn subscribe_to_events(cx: Scope) -> ReadSignal<Option<GameEvent>> {
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum GameKind {
+    Custom,
+    JoinCustom(String),
+    Random,
+    Solo,
+}
+
+#[cfg(all(feature = "hydrate", not(feature = "ssr")))]
+fn subscribe_to_events(cx: Scope, game_kind: GameKind) -> ReadSignal<Option<GameEvent>> {
     use futures::StreamExt;
-    let mut source = gloo_net::eventsource::futures::EventSource::new("/api/start_game").unwrap();
-    log!("test");
+    let url = match game_kind {
+        GameKind::Custom => "/api/custom_game".into(),
+        GameKind::Random => "/api/random_game".into(),
+        GameKind::JoinCustom(id) => format!("/api/join_game/{}", id),
+        GameKind::Solo => "".into(),
+    };
+    let mut source = gloo_net::eventsource::futures::EventSource::new(&url).unwrap();
     let stream = source.subscribe("message").unwrap().map(|value| {
         let (_, event) = value.unwrap();
         let data = event.data().as_string().unwrap();
-        log!("event data: {:?}", data);
         let event: GameEvent = serde_json::from_str(&data).unwrap();
         event
     });
@@ -310,40 +321,45 @@ fn subscribe_to_events(cx: Scope) -> ReadSignal<Option<GameEvent>> {
 }
 
 #[cfg(feature = "ssr")]
-fn subscribe_to_events(cx: Scope) -> ReadSignal<Option<GameEvent>> {
+fn subscribe_to_events(cx: Scope, _game_kind: GameKind) -> ReadSignal<Option<GameEvent>> {
     create_signal(cx, None).0
 }
 
 #[component]
-pub fn Board(cx: Scope) -> impl IntoView {
-    let events = subscribe_to_events(cx);
-    let (event, set_event) = create_signal(cx, None);
-    create_effect(cx, move |_| set_event.set(events.get()));
-    let clear_event = move || set_event.set(None);
+pub fn Board(cx: Scope, game_kind: GameKind) -> impl IntoView {
+    let events = subscribe_to_events(cx, game_kind);
+    create_effect(cx, move |_| {
+        let event = events.get();
+        log!("event: {:?}", event);
+    });
 
     let (selected, set_selected) = create_signal(cx, None);
     let (dest, set_dest) = create_signal(cx, None);
     let (can_promote, set_can_promote) = create_signal(cx, None);
     let (board, set_board) = create_signal(cx, HexBoard::new());
+    let (player_infos, set_player_infos) = create_signal(cx, (PieceColor::White, None));
+    let (custom_game_id, set_custom_game_id) = create_signal(cx, None);
 
-    let player_infos = create_memo(
-        cx,
-        move |old_infos: Option<&(PieceColor, Option<(Uuid, Uuid)>)>| match (
-            events.get(),
-            old_infos,
-        ) {
-            (
-                Some(GameEvent::GameStart {
-                    game_id,
-                    player_id,
-                    player_color,
-                }),
-                _,
-            ) => (player_color, Some((game_id, player_id))),
-            (_, Some(old_infos)) => *old_infos,
-            _ => (PieceColor::White, None),
-        },
-    );
+    create_effect(cx, move |_: Option<Option<()>>| {
+        let event = events.get()?;
+        match event {
+            GameEvent::GameStart {
+                game_id,
+                player_id,
+                player_color,
+            } => set_player_infos.set((player_color, Some((game_id, player_id)))),
+            GameEvent::CustomCreated { game_id } => set_custom_game_id.set(Some(game_id)),
+            GameEvent::OpponentPlayedMove {
+                from,
+                to,
+                promote_to,
+            } => set_board.update(|board| {
+                board.play_move(from, to, promote_to).unwrap();
+            }),
+            _ => (),
+        }
+        None
+    });
 
     let player_color = move || player_infos.get().0;
 
@@ -375,18 +391,6 @@ pub fn Board(cx: Scope) -> impl IntoView {
         let (color, ids) = player_infos.get();
         let from = selected.get();
         let to = dest.get();
-        let event = event.get();
-        if let Some(GameEvent::OpponentPlayedMove {
-            from,
-            to,
-            promote_to,
-        }) = event
-        {
-            clear_event();
-            set_board.update(|board| {
-                board.play_move(from, to, promote_to).unwrap();
-            });
-        }
         if board.with(|board| board.get_player_turn() != color) {
             return;
         }
@@ -410,6 +414,54 @@ pub fn Board(cx: Scope) -> impl IntoView {
                     });
                 }
                 _ => (),
+            }
+        }
+    });
+
+    view! { cx,
+
+        <div>
+            {orientation_manager(cx, board, selected, player_color, can_promote, on_select)}
+            {move || custom_game_id.get().map(|game_id| view! { cx,
+                <p>
+                    {format!("Custom game created with id: {}", game_id)}
+                </p>
+            })}
+        </div>
+
+    }
+}
+
+#[component]
+pub fn SoloBoard(cx: Scope) -> impl IntoView {
+    let (board, set_board) = create_signal(cx, HexBoard::new());
+    let (selected, set_selected) = create_signal(cx, None);
+    let (can_promote, set_can_promote) = create_signal(cx, None);
+    let (dest, set_dest) = create_signal(cx, None);
+
+    let player_color = move || board.with(|board| board.get_player_turn());
+
+    let on_select = move |pos: HexVector, promote_to: Option<PieceKind>| {
+        let (target_piece, color) =
+            board.with(|board| (board.get_piece_at(pos), board.get_player_turn()));
+        match (selected.get(), target_piece) {
+            (_, Some(piece)) if piece.color == color => {
+                set_selected.set(Some(pos));
+                set_dest.set(None);
+            }
+            (Some(_), _) => {
+                set_dest.set(Some((pos, promote_to)));
+            }
+            (None, _) => (),
+        }
+    };
+
+    create_effect(cx, move |_| {
+        if let (Some(from), Some((to, promote_to))) = (selected.get(), dest.get()) {
+            let mut res = Ok(None);
+            set_board.update(|board| res = board.play_move(from, to, promote_to));
+            if let Ok(promote_move) = res {
+                set_can_promote.set(promote_move)
             }
         }
     });

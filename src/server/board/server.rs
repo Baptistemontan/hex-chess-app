@@ -163,10 +163,17 @@ impl Display for GameError {
     }
 }
 
+impl actix_web::ResponseError for GameError {
+    fn status_code(&self) -> http::StatusCode {
+        http::StatusCode::BAD_REQUEST
+    }
+}
+
 impl std::error::Error for GameError {}
 
 pub struct Games {
     games: Mutex<HashMap<Uuid, Arc<Mutex<Game>>>>,
+    custom_games: Mutex<HashMap<Uuid, sse::Sender>>,
     waiting_room: Mutex<Vec<sse::Sender>>,
 }
 
@@ -182,6 +189,7 @@ impl Games {
 
         Games {
             games: Mutex::new(HashMap::new()),
+            custom_games: Mutex::new(HashMap::new()),
             waiting_room: Mutex::new(vec![]),
         }
     }
@@ -190,11 +198,28 @@ impl Games {
         self.waiting_room.lock().await.pop()
     }
 
-    pub async fn start_new_game(&self) -> sse::Sse<sse::ChannelStream> {
+    pub async fn start_new_game(
+        &self,
+        player1: sse::Sender,
+        player2: sse::Sender,
+        game_id: Uuid,
+    ) -> Result<(), sse::Sender> {
+        match Game::new(player1, player2, game_id).await {
+            Ok(game) => {
+                println!("start game {}", game_id);
+                let game = Arc::new(Mutex::new(game));
+                self.games.lock().await.insert(game_id, game);
+                Ok(())
+            }
+            Err(sender) => Err(sender),
+        }
+    }
+
+    pub async fn start_new_random_game(&self) -> sse::Sse<sse::ChannelStream> {
         let (sender, stream) = sse::channel(10);
         if let Some(opponent) = self.find_waiting_game().await {
-            println!("start game");
             let game_id = Uuid::new_v4();
+            println!("start game {}", game_id);
             match Game::new(sender, opponent, game_id).await {
                 Ok(game) => {
                     let game = Arc::new(Mutex::new(game));
@@ -216,6 +241,11 @@ impl Games {
         games.get(&id).cloned().ok_or(GameError::InvalidGameId(id))
     }
 
+    pub async fn get_custom_game_with_id(&self, id: Uuid) -> Result<sse::Sender, GameError> {
+        let mut games = self.custom_games.lock().await;
+        games.remove(&id).ok_or(GameError::InvalidGameId(id))
+    }
+
     pub async fn remove_stale_games(&self) {
         let mut games = self.games.lock().await;
 
@@ -234,6 +264,29 @@ impl Games {
 
         games.retain(|id, _| !to_remove.contains(id));
     }
+
+    pub async fn create_custom_game(&self) -> sse::Sse<sse::ChannelStream> {
+        let game_id = Uuid::new_v4();
+        let (player, stream) = sse::channel(10);
+        let _ = player.send(GameEvent::CustomCreated { game_id }).await;
+        let mut games = self.custom_games.lock().await;
+        games.insert(game_id, player);
+        stream
+    }
+
+    pub async fn join_game(
+        &self,
+        game_id: Uuid,
+    ) -> Result<sse::Sse<sse::ChannelStream>, GameError> {
+        let player1 = self.get_custom_game_with_id(game_id).await?;
+        let (player2, stream) = sse::channel(10);
+        let res = self.start_new_game(player1, player2, game_id).await;
+        if let Err(sender) = res {
+            let _ = sender.send(GameEvent::OpponentDisconnected).await;
+        }
+
+        Ok(stream)
+    }
 }
 
 lazy_static::lazy_static! {
@@ -248,7 +301,21 @@ async fn remove_stale_games() {
     }
 }
 
-#[get("/api/start_game")]
-pub async fn start_game() -> sse::Sse<sse::ChannelStream> {
-    GAMES.start_new_game().await
+#[get("/api/random_game")]
+pub async fn random_game() -> sse::Sse<sse::ChannelStream> {
+    GAMES.start_new_random_game().await
+}
+
+#[get("/api/custom_game")]
+pub async fn custom_game() -> sse::Sse<sse::ChannelStream> {
+    GAMES.create_custom_game().await
+}
+
+#[get("/api/join_game/{game_id}")]
+pub async fn join_game(
+    game_id: web::Path<Uuid>,
+) -> Result<sse::Sse<sse::ChannelStream>, GameError> {
+    let game_id = game_id.into_inner();
+    println!("try joining game {}", game_id);
+    GAMES.join_game(game_id).await
 }

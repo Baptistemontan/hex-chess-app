@@ -13,6 +13,9 @@ pub mod server;
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum GameEvent {
     WaitingForOpponent,
+    CustomCreated {
+        game_id: Uuid,
+    },
     GameStart {
         game_id: Uuid,
         player_id: Uuid,
