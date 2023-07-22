@@ -1,5 +1,5 @@
 use hex_chess_core::{
-    board::Board as HexBoard,
+    board::Board,
     hex_coord::HexVector,
     mov::{CanPromoteMove, MaybePromoteMove},
     piece::{Color as PieceColor, Piece, PieceKind},
@@ -112,7 +112,7 @@ fn hexagon<F>(
     cx: Scope,
     vector: HexVector,
     color: HexColor,
-    board: ReadSignal<HexBoard>,
+    board: ReadSignal<Board>,
     selected: ReadSignal<Option<HexVector>>,
     on_select: F,
     legal_moves: Memo<Option<HashSet<HexVector>>>,
@@ -251,7 +251,7 @@ where
 #[allow(clippy::too_many_arguments)]
 fn draw_hex_board<OS>(
     cx: Scope,
-    board: ReadSignal<HexBoard>,
+    board: ReadSignal<Board>,
     orientation: ReadSignal<Orientation>,
     selected: ReadSignal<Option<HexVector>>,
     can_promote: ReadSignal<Option<CanPromoteMove>>,
@@ -265,6 +265,7 @@ where
     let legal_moves = create_memo(cx, move |_| board.get().get_legal_moves_for(color()));
 
     let current_legal_moves = create_memo(cx, move |_| {
+        legal_moves.track();
         selected.get().and_then(|selected| {
             legal_moves.with(|map| {
                 Some(
@@ -288,7 +289,7 @@ where
 #[allow(clippy::too_many_arguments)]
 fn orientation_manager<OS>(
     cx: Scope,
-    board: ReadSignal<HexBoard>,
+    board: ReadSignal<Board>,
     selected: ReadSignal<Option<HexVector>>,
     player_color: impl Fn() -> PieceColor + Copy + 'static,
     can_promote: ReadSignal<Option<CanPromoteMove>>,
@@ -355,7 +356,7 @@ fn subscribe_to_events(cx: Scope, _game_kind: &GameKind) -> ReadSignal<Option<Ga
 }
 
 #[component]
-pub fn Board(cx: Scope, game_kind: GameKind) -> impl IntoView {
+pub fn MultiBoard(cx: Scope, game_kind: GameKind) -> impl IntoView {
     let events = subscribe_to_events(cx, &game_kind);
     create_effect(cx, move |_| {
         let event = events.get();
@@ -365,7 +366,7 @@ pub fn Board(cx: Scope, game_kind: GameKind) -> impl IntoView {
     let (selected, set_selected) = create_signal(cx, None);
     let (dest, set_dest) = create_signal(cx, None);
     let (can_promote, set_can_promote) = create_signal(cx, None);
-    let (board, set_board) = create_signal(cx, HexBoard::new());
+    let (board, set_board) = create_signal(cx, Board::new());
     let (player_infos, set_player_infos) = create_signal(cx, (PieceColor::White, None));
     let (custom_game_id, set_custom_game_id) = create_signal(cx, None);
 
@@ -403,6 +404,18 @@ pub fn Board(cx: Scope, game_kind: GameKind) -> impl IntoView {
             _ => (),
         }
         None
+    });
+
+    create_effect(cx, move |_| {
+        let event = events.get();
+        let selected = selected.get_untracked();
+
+        match (event, selected) {
+            (Some(GameEvent::OpponentPlayedMove { to, .. }), Some(pos)) if pos == to => {
+                set_selected.set(None);
+            }
+            _ => (),
+        }
     });
 
     let player_color = move || player_infos.get().0;
@@ -498,7 +511,7 @@ pub fn Board(cx: Scope, game_kind: GameKind) -> impl IntoView {
 
 #[component]
 pub fn SoloBoard(cx: Scope) -> impl IntoView {
-    let (board, set_board) = create_signal(cx, HexBoard::new());
+    let (board, set_board) = create_signal(cx, Board::new());
     let (selected, set_selected) = create_signal(cx, None);
     let (can_promote, set_can_promote) = create_signal(cx, None);
     let (dest, set_dest) = create_signal(cx, None);
@@ -549,7 +562,7 @@ pub fn SoloBoard(cx: Scope) -> impl IntoView {
         }
     });
 
-    let color = move || board.with(HexBoard::get_player_turn);
+    let color = move || board.with(Board::get_player_turn);
 
     view! { cx,
         <div>

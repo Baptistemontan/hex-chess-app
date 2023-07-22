@@ -1,4 +1,4 @@
-use crate::components::board::{Board, GameKind, SoloBoard};
+use crate::components::board::{GameKind, MultiBoard, SoloBoard};
 use leptos::*;
 use leptos_meta::*;
 
@@ -20,7 +20,7 @@ pub fn HomePage(cx: Scope) -> impl IntoView {
         <div class="board">
             {move || match game_kind.get() {
                 GameKind::Solo => view! { cx, <SoloBoard/> },
-                other => view! { cx, <Board game_kind=other/> }
+                other => view! { cx, <MultiBoard game_kind=other/> }
             }}
         </div>
         <div>
