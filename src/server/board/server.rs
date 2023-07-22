@@ -271,6 +271,7 @@ impl Games {
         let _ = player.send(GameEvent::CustomCreated { game_id }).await;
         let mut games = self.custom_games.lock().await;
         games.insert(game_id, player);
+        println!("created custom game {}", game_id);
         stream
     }
 
