@@ -4,6 +4,7 @@ RUN cargo install --locked cargo-leptos
 RUN rustup toolchain install nightly
 RUN rustup target add wasm32-unknown-unknown --toolchain nightly
 COPY . .
+RUN cargo update
 RUN cargo leptos build --release
 
 FROM ubuntu:latest
