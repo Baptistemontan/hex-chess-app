@@ -371,6 +371,15 @@ pub fn Board(cx: Scope, game_kind: GameKind) -> impl IntoView {
 
     let (last_move, set_last_move) = create_signal(cx, None);
 
+    let is_end = create_memo(cx, move |_| board.get().is_end());
+
+    create_effect(cx, move |_| {
+        if is_end.get().is_some() {
+            set_selected.set(None);
+            set_dest.set(None);
+        }
+    });
+
     create_effect(cx, move |_: Option<Option<()>>| {
         let event = events.get()?;
         match event {
@@ -402,12 +411,14 @@ pub fn Board(cx: Scope, game_kind: GameKind) -> impl IntoView {
 
     let on_select = move |pos: HexVector, promote_to: Option<PieceKind>| {
         let (color, ids) = player_infos.get();
-        if ids.is_none() {
-            return;
-        }
+
         let (target_piece, is_turn) =
             board.with(|board| (board.get_piece_at(pos), board.get_player_turn() == color));
-        match (selected.get(), target_piece) {
+        let selected = selected.get();
+        if is_end.get().is_some() || ids.is_none() {
+            return;
+        }
+        match (selected, target_piece) {
             (_, Some(piece)) if piece.color == color => {
                 set_selected.set(Some(pos));
                 set_dest.set(None);
@@ -455,6 +466,25 @@ pub fn Board(cx: Scope, game_kind: GameKind) -> impl IntoView {
 
         <div>
             {orientation_manager(cx, board, selected, player_color, can_promote, last_move, game_kind, on_select)}
+            {move || is_end.get().map(|end| {
+                match end {
+                    hex_chess_core::board::GameEnd::Win(color) => {
+                        view! { cx,
+                            <p>{format!("{:?} wins!", color)}</p>
+                        }
+                    },
+                    hex_chess_core::board::GameEnd::Draw => {
+                        view! { cx,
+                            <p>"Draw"</p>
+                        }
+                    },
+                    hex_chess_core::board::GameEnd::Stalemate { winner } => {
+                        view! { cx,
+                            <p>{format!("Stalemate, {:?} wins 3/4 of the points", winner)}</p>
+                        }
+                    },
+                }
+            })}
             {move || custom_game_id.get().map(|game_id| view! { cx,
                 <p>
                     {format!("Custom game created with id: {}", game_id)}
@@ -474,10 +504,23 @@ pub fn SoloBoard(cx: Scope) -> impl IntoView {
     let (dest, set_dest) = create_signal(cx, None);
     let (last_move, set_last_move) = create_signal(cx, None);
 
+    let is_end = create_memo(cx, move |_| board.get().is_end());
+
+    create_effect(cx, move |_| {
+        if is_end.get().is_some() {
+            set_selected.set(None);
+            set_dest.set(None);
+        }
+    });
+
     let on_select = move |pos: HexVector, promote_to: Option<PieceKind>| {
         let (target_piece, color) =
             board.with(|board| (board.get_piece_at(pos), board.get_player_turn()));
-        match (selected.get(), target_piece) {
+        let selected = selected.get();
+        if is_end.get().is_some() {
+            return;
+        }
+        match (selected, target_piece) {
             (_, Some(piece)) if piece.color == color => {
                 set_selected.set(Some(pos));
                 set_dest.set(None);
@@ -508,14 +551,38 @@ pub fn SoloBoard(cx: Scope) -> impl IntoView {
 
     let color = move || board.with(HexBoard::get_player_turn);
 
-    orientation_manager(
-        cx,
-        board,
-        selected,
-        color,
-        can_promote,
-        last_move,
-        GameKind::Solo,
-        on_select,
-    )
+    view! { cx,
+        <div>
+            {orientation_manager(
+                cx,
+                board,
+                selected,
+                color,
+                can_promote,
+                last_move,
+                GameKind::Solo,
+                on_select,
+            )}
+            {move || is_end.get().map(|end| {
+                match end {
+                    hex_chess_core::board::GameEnd::Win(color) => {
+                        view! { cx,
+                            <p>{format!("{:?} wins!", color)}</p>
+                        }
+                    },
+                    hex_chess_core::board::GameEnd::Draw => {
+                        view! { cx,
+                            <p>"Draw"</p>
+                        }
+                    },
+                    hex_chess_core::board::GameEnd::Stalemate { winner } => {
+                        view! { cx,
+                            <p>{format!("Stalemate, {:?} wins 3/4 of the points", winner)}</p>
+                        }
+                    },
+                }
+            })}
+        </div>
+
+    }
 }
