@@ -115,7 +115,7 @@ fn hexagon<F>(
     board: ReadSignal<HexBoard>,
     selected: ReadSignal<Option<HexVector>>,
     on_select: F,
-    legal_moves: Memo<Option<HashSet<MaybePromoteMove>>>,
+    legal_moves: Memo<Option<HashSet<HexVector>>>,
     orientation: ReadSignal<Orientation>,
     can_promote: ReadSignal<Option<CanPromoteMove>>,
     last_move: ReadSignal<Option<(HexVector, HexVector)>>,
@@ -154,10 +154,13 @@ where
     let piece_image_url = create_memo(cx, move |_| piece.get().map(get_piece_url));
 
     let is_move_dest = create_memo(cx, move |_| {
-        legal_moves
-            .get()
-            .is_some_and(|moves| moves.iter().any(|mov| mov.to() == vector()))
+        legal_moves.with(|moves| {
+            moves
+                .as_ref()
+                .is_some_and(|moves| moves.contains(&vector()))
+        })
     });
+
     let is_piece_and_dest = move || piece.get().is_some() && is_move_dest.get();
 
     let on_click = move |_| {
@@ -245,6 +248,7 @@ where
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_hex_board<OS>(
     cx: Scope,
     board: ReadSignal<HexBoard>,
@@ -252,17 +256,26 @@ fn draw_hex_board<OS>(
     selected: ReadSignal<Option<HexVector>>,
     can_promote: ReadSignal<Option<CanPromoteMove>>,
     last_move: ReadSignal<Option<(HexVector, HexVector)>>,
+    color: impl Fn() -> PieceColor + 'static,
     on_select: OS,
 ) -> impl IntoView
 where
     OS: Fn(HexVector, Option<PieceKind>) + Copy + 'static,
 {
-    let legal_moves = create_memo(cx, move |_| board.get().get_legal_moves());
+    let legal_moves = create_memo(cx, move |_| board.get().get_legal_moves_for(color()));
 
     let current_legal_moves = create_memo(cx, move |_| {
-        selected
-            .get()
-            .and_then(|selected| legal_moves.get().get(&selected).cloned())
+        selected.get().and_then(|selected| {
+            legal_moves.with(|map| {
+                Some(
+                    map.get(&selected)?
+                        .iter()
+                        .copied()
+                        .map(MaybePromoteMove::to)
+                        .collect(),
+                )
+            })
+        })
     });
 
     view! { cx,
@@ -272,13 +285,15 @@ where
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn orientation_manager<OS>(
     cx: Scope,
     board: ReadSignal<HexBoard>,
     selected: ReadSignal<Option<HexVector>>,
-    player_color: impl Fn() -> PieceColor + 'static,
+    player_color: impl Fn() -> PieceColor + Copy + 'static,
     can_promote: ReadSignal<Option<CanPromoteMove>>,
     last_move: ReadSignal<Option<(HexVector, HexVector)>>,
+    game_kind: GameKind,
     on_select: OS,
 ) -> impl IntoView
 where
@@ -286,17 +301,20 @@ where
 {
     let (orientation, set_orientation) = create_signal(cx, Orientation::Normal);
     create_effect(cx, move |_| {
-        let orientation = match player_color() {
-            PieceColor::Black => Orientation::Reversed,
-            PieceColor::White => Orientation::Normal,
-        };
-        set_orientation.set(orientation);
+        let color = player_color();
+        if game_kind != GameKind::Solo {
+            let orientation = match color {
+                PieceColor::Black => Orientation::Reversed,
+                PieceColor::White => Orientation::Normal,
+            };
+            set_orientation.set(orientation);
+        }
     });
     let on_switch = move |_| set_orientation.update(Orientation::reverse_assign);
 
     view! { cx,
         <div>
-            {draw_hex_board(cx, board, orientation, selected, can_promote, last_move, on_select)}
+            {draw_hex_board(cx, board, orientation, selected, can_promote, last_move, player_color, on_select)}
             <button on:click=on_switch>"switch side"</button>
         </div>
     }
@@ -311,7 +329,7 @@ pub enum GameKind {
 }
 
 #[cfg(all(feature = "hydrate", not(feature = "ssr")))]
-fn subscribe_to_events(cx: Scope, game_kind: GameKind) -> ReadSignal<Option<GameEvent>> {
+fn subscribe_to_events(cx: Scope, game_kind: &GameKind) -> ReadSignal<Option<GameEvent>> {
     use futures::StreamExt;
     let url = match game_kind {
         GameKind::Custom => "/api/custom_game".into(),
@@ -332,13 +350,13 @@ fn subscribe_to_events(cx: Scope, game_kind: GameKind) -> ReadSignal<Option<Game
 }
 
 #[cfg(feature = "ssr")]
-fn subscribe_to_events(cx: Scope, _game_kind: GameKind) -> ReadSignal<Option<GameEvent>> {
+fn subscribe_to_events(cx: Scope, _game_kind: &GameKind) -> ReadSignal<Option<GameEvent>> {
     create_signal(cx, None).0
 }
 
 #[component]
 pub fn Board(cx: Scope, game_kind: GameKind) -> impl IntoView {
-    let events = subscribe_to_events(cx, game_kind);
+    let events = subscribe_to_events(cx, &game_kind);
     create_effect(cx, move |_| {
         let event = events.get();
         log!("event: {:?}", event);
@@ -389,18 +407,15 @@ pub fn Board(cx: Scope, game_kind: GameKind) -> impl IntoView {
         }
         let (target_piece, is_turn) =
             board.with(|board| (board.get_piece_at(pos), board.get_player_turn() == color));
-        if !is_turn {
-            return;
-        }
         match (selected.get(), target_piece) {
             (_, Some(piece)) if piece.color == color => {
                 set_selected.set(Some(pos));
                 set_dest.set(None);
             }
-            (Some(_), _) => {
+            (Some(_), _) if is_turn => {
                 set_dest.set(Some((pos, promote_to)));
             }
-            (None, _) => (),
+            _ => (),
         }
     };
 
@@ -439,7 +454,7 @@ pub fn Board(cx: Scope, game_kind: GameKind) -> impl IntoView {
     view! { cx,
 
         <div>
-            {orientation_manager(cx, board, selected, player_color, can_promote, last_move, on_select)}
+            {orientation_manager(cx, board, selected, player_color, can_promote, last_move, game_kind, on_select)}
             {move || custom_game_id.get().map(|game_id| view! { cx,
                 <p>
                     {format!("Custom game created with id: {}", game_id)}
@@ -491,13 +506,16 @@ pub fn SoloBoard(cx: Scope) -> impl IntoView {
         }
     });
 
+    let color = move || board.with(HexBoard::get_player_turn);
+
     orientation_manager(
         cx,
         board,
         selected,
-        || PieceColor::White,
+        color,
         can_promote,
         last_move,
+        GameKind::Solo,
         on_select,
     )
 }
