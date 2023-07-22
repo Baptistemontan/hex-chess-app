@@ -343,12 +343,15 @@ pub fn Board(cx: Scope, game_kind: GameKind) -> impl IntoView {
     create_effect(cx, move |_: Option<Option<()>>| {
         let event = events.get()?;
         match event {
+            GameEvent::CustomCreated { game_id } => set_custom_game_id.set(Some(game_id)),
             GameEvent::GameStart {
                 game_id,
                 player_id,
                 player_color,
-            } => set_player_infos.set((player_color, Some((game_id, player_id)))),
-            GameEvent::CustomCreated { game_id } => set_custom_game_id.set(Some(game_id)),
+            } => {
+                set_player_infos.set((player_color, Some((game_id, player_id))));
+                set_custom_game_id.set(None);
+            }
             GameEvent::OpponentPlayedMove {
                 from,
                 to,
@@ -426,6 +429,7 @@ pub fn Board(cx: Scope, game_kind: GameKind) -> impl IntoView {
                 <p>
                     {format!("Custom game created with id: {}", game_id)}
                 </p>
+                <p>"Waiting for opponent"</p>
             })}
         </div>
 
@@ -438,8 +442,6 @@ pub fn SoloBoard(cx: Scope) -> impl IntoView {
     let (selected, set_selected) = create_signal(cx, None);
     let (can_promote, set_can_promote) = create_signal(cx, None);
     let (dest, set_dest) = create_signal(cx, None);
-
-    let player_color = move || board.with(|board| board.get_player_turn());
 
     let on_select = move |pos: HexVector, promote_to: Option<PieceKind>| {
         let (target_piece, color) =
@@ -460,11 +462,22 @@ pub fn SoloBoard(cx: Scope) -> impl IntoView {
         if let (Some(from), Some((to, promote_to))) = (selected.get(), dest.get()) {
             let mut res = Ok(None);
             set_board.update(|board| res = board.play_move(from, to, promote_to));
-            if let Ok(promote_move) = res {
-                set_can_promote.set(promote_move)
+            if let Ok(Some(promote_move)) = res {
+                set_can_promote.set(Some(promote_move))
+            } else {
+                set_selected.set(None);
+                set_dest.set(None);
+                set_can_promote.set(None);
             }
         }
     });
 
-    orientation_manager(cx, board, selected, player_color, can_promote, on_select)
+    orientation_manager(
+        cx,
+        board,
+        selected,
+        || PieceColor::White,
+        can_promote,
+        on_select,
+    )
 }
