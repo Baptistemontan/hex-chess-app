@@ -17,6 +17,7 @@ enum HexColor {
     Grey,
     White,
     Selected,
+    LastMove,
 }
 
 impl HexColor {
@@ -117,6 +118,7 @@ fn hexagon<F>(
     legal_moves: Memo<Option<HashSet<MaybePromoteMove>>>,
     orientation: ReadSignal<Orientation>,
     can_promote: ReadSignal<Option<CanPromoteMove>>,
+    last_move: ReadSignal<Option<(HexVector, HexVector)>>,
 ) -> impl IntoView
 where
     F: Fn(HexVector, Option<PieceKind>) + Copy + 'static,
@@ -130,9 +132,15 @@ where
     };
 
     let color = move || {
-        if selected.get().is_some_and(|pos| pos == vector()) {
+        let vector = vector();
+        let selected = selected.get();
+        let orientation = orientation.get();
+        let last_move = last_move.get();
+        if selected.is_some_and(|pos| pos == vector) {
             HexColor::Selected
-        } else if orientation.get() == Orientation::Normal {
+        } else if last_move.is_some_and(|(from, to)| from == vector || to == vector) {
+            HexColor::LastMove
+        } else if orientation == Orientation::Normal {
             color
         } else {
             color.reverse()
@@ -179,6 +187,7 @@ where
                 class=("hex-grid__content__grey", move || color() == HexColor::Grey)
                 class=("hex-grid__content__white", move || color() == HexColor::White)
                 class=("hex-grid__content__selected", move || color() == HexColor::Selected)
+                class=("hex-grid__content__last_move", move || color() == HexColor::LastMove)
                 class=("hex-grid__content__is_dest", move || is_move_dest.get() && !is_piece_and_dest())
                 class=("hex-grid__content__is_piece_and_dest", is_piece_and_dest)
             >
@@ -242,6 +251,7 @@ fn draw_hex_board<OS>(
     orientation: ReadSignal<Orientation>,
     selected: ReadSignal<Option<HexVector>>,
     can_promote: ReadSignal<Option<CanPromoteMove>>,
+    last_move: ReadSignal<Option<(HexVector, HexVector)>>,
     on_select: OS,
 ) -> impl IntoView
 where
@@ -257,7 +267,7 @@ where
 
     view! { cx,
         <ul class="hex-grid__list">
-        {move || GridIterator::new().map(|(vector, color)| hexagon(cx, vector, color, board, selected, on_select, current_legal_moves, orientation, can_promote)).collect_view(cx)}
+        {move || GridIterator::new().map(|(vector, color)| hexagon(cx, vector, color, board, selected, on_select, current_legal_moves, orientation, can_promote, last_move)).collect_view(cx)}
         </ul>
     }
 }
@@ -268,6 +278,7 @@ fn orientation_manager<OS>(
     selected: ReadSignal<Option<HexVector>>,
     player_color: impl Fn() -> PieceColor + 'static,
     can_promote: ReadSignal<Option<CanPromoteMove>>,
+    last_move: ReadSignal<Option<(HexVector, HexVector)>>,
     on_select: OS,
 ) -> impl IntoView
 where
@@ -285,7 +296,7 @@ where
 
     view! { cx,
         <div>
-            {draw_hex_board(cx, board, orientation, selected, can_promote, on_select)}
+            {draw_hex_board(cx, board, orientation, selected, can_promote, last_move, on_select)}
             <button on:click=on_switch>"switch side"</button>
         </div>
     }
@@ -340,6 +351,8 @@ pub fn Board(cx: Scope, game_kind: GameKind) -> impl IntoView {
     let (player_infos, set_player_infos) = create_signal(cx, (PieceColor::White, None));
     let (custom_game_id, set_custom_game_id) = create_signal(cx, None);
 
+    let (last_move, set_last_move) = create_signal(cx, None);
+
     create_effect(cx, move |_: Option<Option<()>>| {
         let event = events.get()?;
         match event {
@@ -358,6 +371,7 @@ pub fn Board(cx: Scope, game_kind: GameKind) -> impl IntoView {
                 promote_to,
             } => set_board.update(|board| {
                 board.play_move(from, to, promote_to).unwrap();
+                set_last_move.set(Some((from, to)));
             }),
             _ => (),
         }
@@ -408,6 +422,7 @@ pub fn Board(cx: Scope, game_kind: GameKind) -> impl IntoView {
                     set_can_promote.set(None);
                     set_dest.set(None);
                     set_selected.set(None);
+                    set_last_move.set(Some((from, to)));
                     play_server_move.dispatch(PlayMove {
                         game_id,
                         player_id,
@@ -424,7 +439,7 @@ pub fn Board(cx: Scope, game_kind: GameKind) -> impl IntoView {
     view! { cx,
 
         <div>
-            {orientation_manager(cx, board, selected, player_color, can_promote, on_select)}
+            {orientation_manager(cx, board, selected, player_color, can_promote, last_move, on_select)}
             {move || custom_game_id.get().map(|game_id| view! { cx,
                 <p>
                     {format!("Custom game created with id: {}", game_id)}
@@ -442,6 +457,7 @@ pub fn SoloBoard(cx: Scope) -> impl IntoView {
     let (selected, set_selected) = create_signal(cx, None);
     let (can_promote, set_can_promote) = create_signal(cx, None);
     let (dest, set_dest) = create_signal(cx, None);
+    let (last_move, set_last_move) = create_signal(cx, None);
 
     let on_select = move |pos: HexVector, promote_to: Option<PieceKind>| {
         let (target_piece, color) =
@@ -465,6 +481,9 @@ pub fn SoloBoard(cx: Scope) -> impl IntoView {
             if let Ok(Some(promote_move)) = res {
                 set_can_promote.set(Some(promote_move))
             } else {
+                if res.is_ok() {
+                    set_last_move.set(Some((from, to)));
+                }
                 set_selected.set(None);
                 set_dest.set(None);
                 set_can_promote.set(None);
@@ -478,6 +497,7 @@ pub fn SoloBoard(cx: Scope) -> impl IntoView {
         selected,
         || PieceColor::White,
         can_promote,
+        last_move,
         on_select,
     )
 }

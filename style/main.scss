@@ -105,6 +105,9 @@ $block: '.hex-grid';
 		&__selected {
 			background-color: #bbcb2b;
 		}
+		&__last_move {
+			background-color: #fffd73;
+		}
 		&__is_dest::after {
 			position: absolute;
 			content: "";
