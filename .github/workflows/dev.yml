@@ -15,7 +15,7 @@ jobs:
           touch .env
           echo AUTHORITY=${{ vars.AUTHORITY }} >> .env
           echo AUTH0_CLIENT_ID=${{ vars.AUTH0_CLIENT_ID }} >> .env
-          echo CLIENT_SECRET=${{ secrets.AUTH0_CLIENT_SECRET }} >> .env
+          echo AUTH0_CLIENT_SECRET=${{ secrets.AUTH0_CLIENT_SECRET }} >> .env
           echo BASE_URL=${{ vars.BASE_URL }} >> .env
       - name: Login to Heroku Container registry
         env:
