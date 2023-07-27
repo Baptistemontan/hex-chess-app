@@ -12,7 +12,7 @@ async fn main() -> std::io::Result<()> {
     }
 
     if dotenvy::dotenv().is_err() {
-        dotenvy::from_filename("./hex-chess-app/.env").unwrap();
+        dotenvy::from_filename("./hex-chess-app/.env").ok();
     }
 
     let conf = get_configuration(None).await.unwrap();
