@@ -10,6 +10,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - name: setup env file
+        uses: SpicyPizza/create-envfile@v2.0
+        with:
+          envkey_AUTHORITY: ${{ vars.AUTHORITY }}
+          envkey_AUTH0_CLIENT_ID: ${{ vars.AUTH0_CLIENT_ID }}
+          envkey_CLIENT_SECRET: ${{ secrets.AUTHORITY }}
+          envkey_BASE_URL: ${{ vars.BASE_URL }}
       - name: Login to Heroku Container registry
         env:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}

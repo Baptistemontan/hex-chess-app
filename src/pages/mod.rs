@@ -1,11 +1,13 @@
 mod home_page;
 mod not_found;
+mod play;
 
 use home_page::HomePage;
 use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
 use not_found::NotFound;
+use play::{Custom, Join, Random};
 
 #[component]
 pub fn App(cx: Scope) -> impl IntoView {
@@ -21,8 +23,11 @@ pub fn App(cx: Scope) -> impl IntoView {
         <Router>
             <main>
                 <Routes>
-                    <Route path="" view=HomePage/>
-                    <Route path="/*any" view=NotFound/>
+                    <Route path="/" view=HomePage />
+                    <Route path="/play/:game_id" view=Join />
+                    <Route path="/play/random" view=Random />
+                    <Route path="/play/custom" view=Custom />
+                    <Route path="/*any" view=NotFound />
                 </Routes>
             </main>
         </Router>

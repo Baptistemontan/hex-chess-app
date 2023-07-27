@@ -7,7 +7,7 @@ use hex_chess_core::{
 use leptos::*;
 use std::collections::HashSet;
 
-use crate::server::{GameEvent, PlayMove};
+use crate::server::board::{GameEvent, PlayMove};
 
 // use leptos_meta::*;
 
@@ -324,7 +324,7 @@ where
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum GameKind {
     Custom,
-    JoinCustom(String),
+    Join(String),
     Random,
     Solo,
 }
@@ -333,10 +333,10 @@ pub enum GameKind {
 fn subscribe_to_events(cx: Scope, game_kind: &GameKind) -> ReadSignal<Option<GameEvent>> {
     use futures::StreamExt;
     let url = match game_kind {
-        GameKind::Custom => "/api/custom_game".into(),
-        GameKind::Random => "/api/random_game".into(),
-        GameKind::JoinCustom(id) => format!("/api/join_game/{}", id),
-        GameKind::Solo => "".into(),
+        GameKind::Custom => "/api/board/new_custom_game".into(),
+        GameKind::Random => "/api/board/new_random_game".into(),
+        GameKind::Join(id) => format!("/api/board/join_game/{}", id),
+        GameKind::Solo => unreachable!(),
     };
     let mut source = gloo_net::eventsource::futures::EventSource::new(&url).unwrap();
     let stream = source.subscribe("message").unwrap().map(|value| {
@@ -363,6 +363,8 @@ pub fn MultiBoard(cx: Scope, game_kind: GameKind) -> impl IntoView {
         log!("event: {:?}", event);
     });
 
+    let navigate = leptos_router::use_navigate(cx);
+
     let (selected, set_selected) = create_signal(cx, None);
     let (dest, set_dest) = create_signal(cx, None);
     let (can_promote, set_can_promote) = create_signal(cx, None);
@@ -387,10 +389,10 @@ pub fn MultiBoard(cx: Scope, game_kind: GameKind) -> impl IntoView {
             GameEvent::CustomCreated { game_id } => set_custom_game_id.set(Some(game_id)),
             GameEvent::GameStart {
                 game_id,
-                player_id,
                 player_color,
             } => {
-                set_player_infos.set((player_color, Some((game_id, player_id))));
+                navigate(&format!("/play/{}", game_id), Default::default()).unwrap();
+                set_player_infos.set((player_color, Some(game_id)));
                 set_custom_game_id.set(None);
             }
             GameEvent::OpponentPlayedMove {
@@ -401,6 +403,15 @@ pub fn MultiBoard(cx: Scope, game_kind: GameKind) -> impl IntoView {
                 board.play_move(from, to, promote_to).unwrap();
                 set_last_move.set(Some((from, to)));
             }),
+            GameEvent::RejoinedGame {
+                game_id,
+                player_color,
+                board,
+            } => {
+                set_board(board);
+                // TODO: set last move
+                set_player_infos.set((player_color, Some(game_id)))
+            }
             _ => (),
         }
         None
@@ -450,7 +461,7 @@ pub fn MultiBoard(cx: Scope, game_kind: GameKind) -> impl IntoView {
         if board.with(|board| board.get_player_turn() != color) {
             return;
         }
-        if let (Some((game_id, player_id)), Some(from), Some((to, promote_to))) = (ids, from, to) {
+        if let (Some(game_id), Some(from), Some((to, promote_to))) = (ids, from, to) {
             let mut move_res = Ok(None);
             set_board.update(|board| {
                 move_res = board.play_move(from, to, promote_to);
@@ -464,7 +475,6 @@ pub fn MultiBoard(cx: Scope, game_kind: GameKind) -> impl IntoView {
                     set_last_move.set(Some((from, to)));
                     play_server_move.dispatch(PlayMove {
                         game_id,
-                        player_id,
                         from,
                         to,
                         promote_to,
