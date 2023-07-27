@@ -1,4 +1,4 @@
-name: Push Container to Heroku
+name: Deploy prod
 
 on:
   push:
