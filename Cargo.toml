@@ -24,8 +24,12 @@ lazy_static = { version = "1", optional = true }
 futures = "0.3"
 serde_json = "1"
 uuid = { version = "1", features = ["serde", "v4"] }
-gloo-net = { git = "https://github.com/rustwasm/gloo", optional = true }
+gloo-net = { version = "0.3", optional = true }
 actix-web-lab = { version = "0.19", optional = true }
+oauth2 = { version = "4.4.1", optional = true, features = ["reqwest"] }
+actix-session = { version = "0.7.2", optional = true, features = ["cookie-session"] }
+dotenvy = { version = "0.15.7", optional = true }
+reqwest = { version = "0.11.18", optional = true, features = ["json"] }
 
 [features]
 default = ["ssr", "hydrate"]
@@ -37,6 +41,10 @@ ssr = [
   "dep:leptos_actix",
   "dep:lazy_static",
   "dep:actix-web-lab",
+  "dep:oauth2",
+  "dep:actix-session",
+  "dep:dotenvy",
+  "dep:reqwest",
   "leptos/ssr",
   "leptos_meta/ssr",
   "leptos_router/ssr",

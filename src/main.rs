@@ -3,25 +3,36 @@
 async fn main() -> std::io::Result<()> {
     use actix_files::Files;
     use actix_web::*;
-    use hex_chess_app::{pages::App, server::server::*};
+    use hex_chess_app::{pages::App, server::*};
     use leptos::*;
     use leptos_actix::{generate_route_list, LeptosRoutes};
+
+    fn get_secret_key() -> cookie::Key {
+        cookie::Key::generate()
+    }
+
+    if dotenvy::dotenv().is_err() {
+        dotenvy::from_filename("./hex-chess-app/.env").ok();
+    }
 
     let conf = get_configuration(None).await.unwrap();
     let addr = conf.leptos_options.site_addr;
     // Generate the list of routes in your Leptos App
     let routes = generate_route_list(|cx| view! { cx, <App/> });
 
-    println!("addr: {}", addr);
+    let auth_client = auth::auth_client::AuthClient::new().unwrap();
+
+    let secret_key = get_secret_key();
+
+    let base_url = BaseUrl::new();
 
     HttpServer::new(move || {
         let leptos_options = &conf.leptos_options;
         let site_root = &leptos_options.site_root;
 
         App::new()
-            .service(custom_game)
-            .service(random_game)
-            .service(join_game)
+            .service(web::scope("/api/board").configure(board::server::config))
+            .service(web::scope("/api/auth").configure(auth::config))
             .route("/api/{tail:.*}", leptos_actix::handle_server_fns())
             // serve JS/WASM/CSS from `pkg`
             .service(Files::new("/pkg", format!("{site_root}/pkg")))
@@ -35,6 +46,12 @@ async fn main() -> std::io::Result<()> {
                 |cx| view! { cx, <App/> },
             )
             .app_data(web::Data::new(leptos_options.to_owned()))
+            .app_data(web::Data::new(auth_client.clone()))
+            .app_data(web::Data::new(base_url.clone()))
+            .wrap(actix_session::SessionMiddleware::new(
+                actix_session::storage::CookieSessionStore::default(),
+                secret_key.clone(),
+            ))
         //.wrap(middleware::Compress::default())
     })
     .bind(&addr)?
