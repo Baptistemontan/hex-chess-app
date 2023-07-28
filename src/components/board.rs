@@ -508,12 +508,20 @@ pub fn MultiBoard(cx: Scope, game_kind: GameKind) -> impl IntoView {
                     },
                 }
             })}
-            {move || custom_game_id.get().map(|game_id| view! { cx,
+            {move || custom_game_id.get().map(|game_id| {
+                let on_copy = move |_| {
+                    if let Some(origin) = get_origin() {
+                        copy_to_clipboard(&format!("{}/play/{}", origin, game_id));
+                    }
+                };
+
+                view! { cx,
                 <p>
                     {format!("Custom game created with id: {}", game_id)}
                 </p>
+                <button on:click=on_copy>"copy link to clipboard"</button>
                 <p>"Waiting for opponent"</p>
-            })}
+            }})}
         </div>
 
     }
@@ -607,5 +615,29 @@ pub fn SoloBoard(cx: Scope) -> impl IntoView {
             })}
         </div>
 
+    }
+}
+
+#[cfg(feature = "hydrate")]
+fn copy_to_clipboard(to_copy: &str) -> Option<()> {
+    let window = leptos::window();
+    let nav = window.navigator();
+    let clip = nav.clipboard()?;
+    let _ = clip.write_text(to_copy);
+    Some(())
+}
+
+#[cfg(not(feature = "hydrate"))]
+fn copy_to_clipboard(_to_copy: &str) -> Option<()> {
+    None
+}
+
+fn get_origin() -> Option<String> {
+    if cfg!(feature = "hydrate") {
+        let window = leptos::window();
+        let location = window.location();
+        location.origin().ok()
+    } else {
+        None
     }
 }
