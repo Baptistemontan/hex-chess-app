@@ -1,4 +1,5 @@
 use leptos::*;
+use leptos_router::use_location;
 
 #[derive(Clone, Copy)]
 struct IsLoggedIn(ReadSignal<Option<bool>>);
@@ -77,4 +78,27 @@ pub fn NotLoggedIn(cx: Scope, children: ChildrenFn) -> impl IntoView {
     let logged_in = use_context::<IsLoggedIn>(cx);
 
     move || render_inner(cx, logged_in, |logged_in| !logged_in, &children)
+}
+
+#[component]
+pub fn CheckLoggedIn(cx: Scope, children: ChildrenFn) -> impl IntoView {
+    fn render_children(cx: Scope, children: &ChildrenFn) -> impl IntoView {
+        children(cx)
+    }
+
+    let render = move |cx| render_children(cx, &children);
+
+    let location = use_location(cx);
+
+    let url = move || format!("/api/auth/login?origin={}", location.pathname.get());
+
+    view! { cx,
+        <LoggedIn>
+            {render(cx)}
+        </LoggedIn>
+        <NotLoggedIn>
+            <h1>"You must be logged to play online"</h1>
+            <a href=url rel="external">"login"</a>
+        </NotLoggedIn>
+    }
 }

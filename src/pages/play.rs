@@ -1,3 +1,4 @@
+use crate::components::auth::CheckLoggedIn;
 use crate::components::board::{GameKind, MultiBoard};
 use leptos::*;
 use leptos_router::*;
@@ -9,28 +10,34 @@ pub fn Join(cx: Scope) -> impl IntoView {
     let game_id = move || params.with(|p| p.get("game_id").cloned());
 
     view! { cx,
-        <div class="board">
+        <CheckLoggedIn>
+            <div class="board">
             {move || game_id().map(|game_id| {
                 view! { cx, <MultiBoard game_kind=GameKind::Join(game_id)/> }
             })}
-        </div>
+            </div>
+        </CheckLoggedIn>
     }
 }
 
 #[component]
 pub fn Random(cx: Scope) -> impl IntoView {
     view! { cx,
-        <div class="board">
-            <MultiBoard game_kind=GameKind::Random/>
-        </div>
+        <CheckLoggedIn>
+            <div class="board">
+                <MultiBoard game_kind=GameKind::Random/>
+            </div>
+        </CheckLoggedIn>
     }
 }
 
 #[component]
 pub fn Custom(cx: Scope) -> impl IntoView {
     view! { cx,
-        <div class="board">
-            <MultiBoard game_kind=GameKind::Custom/>
-        </div>
+        <CheckLoggedIn>
+            <div class="board">
+                <MultiBoard game_kind=GameKind::Custom/>
+            </div>
+        </CheckLoggedIn>
     }
 }

@@ -1,4 +1,4 @@
-use crate::components::auth::{AuthentificationContext, LoggedIn, NotLoggedIn};
+use crate::components::auth::{LoggedIn, NotLoggedIn};
 use crate::components::board::SoloBoard;
 use leptos::*;
 use leptos_meta::*;
@@ -25,31 +25,30 @@ pub fn HomePage(cx: Scope) -> impl IntoView {
     };
 
     view! { cx,
-        <AuthentificationContext>
-            <Title text="Hex Chess | Home"/>
-            <h1>"Welcome to Hex chess!"</h1>
+
+        <Title text="Hex Chess | Home"/>
+        <h1>"Welcome to Hex chess!"</h1>
+        <LoggedIn>
+            <a href="/api/auth/logout" rel="external">"logout"</a>
+        </LoggedIn>
+        <NotLoggedIn>
+            <a href="/api/auth/login" rel="external">"login"</a>
+        </NotLoggedIn>
+        <div class="board">
+            <SoloBoard/>
+        </div>
+        <div>
             <LoggedIn>
-                <a href="/api/auth/logout" rel="external">"logout"</a>
+                <button on:click=move |_| set_redirect.set(Some("random".into()))>"Random Game"</button>
+                <button on:click=move |_| set_redirect.set(Some("custom".into()))>"Create Custom Game"</button>
+                <div>
+                    <p>"Join game : "</p>
+                    <form on:submit=on_submit>
+                        <input type="text" node_ref=input_element/>
+                        <input type="submit" value="Join"/>
+                    </form>
+                </div>
             </LoggedIn>
-            <NotLoggedIn>
-                <a href="/api/auth/login" rel="external">"login"</a>
-            </NotLoggedIn>
-            <div class="board">
-                <SoloBoard/>
-            </div>
-            <div>
-                <LoggedIn>
-                    <button on:click=move |_| set_redirect.set(Some("random".into()))>"Random Game"</button>
-                    <button on:click=move |_| set_redirect.set(Some("custom".into()))>"Create Custom Game"</button>
-                    <div>
-                        <p>"Join game : "</p>
-                        <form on:submit=on_submit>
-                            <input type="text" node_ref=input_element/>
-                            <input type="submit" value="Join"/>
-                        </form>
-                    </div>
-                </LoggedIn>
-            </div>
-        </AuthentificationContext>
+        </div>
     }
 }
