@@ -1,2 +1,3 @@
 [build]
+# used to access the clipboard API with web-sys
 rustflags = ["--cfg=web_sys_unstable_apis"]
