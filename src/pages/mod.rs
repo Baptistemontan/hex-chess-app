@@ -10,6 +10,7 @@ use not_found::NotFound;
 use play::{Custom, Join, Random};
 
 use crate::components::auth::AuthentificationContext;
+use crate::components::layout::Layout;
 
 #[component]
 pub fn App(cx: Scope) -> impl IntoView {
@@ -22,15 +23,15 @@ pub fn App(cx: Scope) -> impl IntoView {
         <Stylesheet id="leptos" href="/pkg/hex-chess-app.css"/>
         <AuthentificationContext>
             <Router>
-                <main>
-                    <Routes>
-                        <Route path="/" view=HomePage />
-                        <Route path="/play/:game_id" view=Join />
-                        <Route path="/play/random" view=Random />
-                        <Route path="/play/custom" view=Custom />
-                        <Route path="/*any" view=NotFound />
-                    </Routes>
-                </main>
+                <Layout>
+                        <Routes>
+                            <Route path="/" view=HomePage />
+                            <Route path="/play/:game_id" view=Join />
+                            <Route path="/play/random" view=Random />
+                            <Route path="/play/custom" view=Custom />
+                            <Route path="/*any" view=NotFound />
+                        </Routes>
+                    </Layout>
             </Router>
         </AuthentificationContext>
     }

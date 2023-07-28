@@ -1,3 +1,4 @@
+// use gloo_net::eventsource::EventSourceError;
 use hex_chess_core::{
     board::Board,
     hex_coord::HexVector,
@@ -316,7 +317,9 @@ where
     view! { cx,
         <div>
             {draw_hex_board(cx, board, orientation, selected, can_promote, last_move, player_color, on_select)}
-            <button on:click=on_switch>"switch side"</button>
+            <div on:click=on_switch class="under_board">
+                <img class="switch_button" src="/assets/icons/switch_side.svg"/>
+            </div>
         </div>
     }
 }
@@ -329,11 +332,26 @@ pub enum GameKind {
     Solo,
 }
 
+#[cfg(feature = "ssr")]
+#[derive(Debug, Clone)]
+pub struct EventError;
+
+#[cfg(all(feature = "hydrate", not(feature = "ssr")))]
+#[derive(Debug, Clone)]
+pub struct EventError(gloo_net::eventsource::EventSourceError);
+
+#[cfg(all(feature = "hydrate", not(feature = "ssr")))]
+impl From<gloo_net::eventsource::EventSourceError> for EventError {
+    fn from(value: gloo_net::eventsource::EventSourceError) -> Self {
+        Self(value)
+    }
+}
+
 #[cfg(all(feature = "hydrate", not(feature = "ssr")))]
 fn subscribe_to_events(
     cx: Scope,
     game_kind: &GameKind,
-) -> (ReadSignal<Option<GameEvent>>, impl FnOnce() + 'static) {
+) -> ReadSignal<Option<Result<GameEvent, EventError>>> {
     use futures::StreamExt;
     let url = match game_kind {
         GameKind::Custom => "/api/board/new_custom_game".into(),
@@ -343,27 +361,27 @@ fn subscribe_to_events(
     };
     let mut source = gloo_net::eventsource::futures::EventSource::new(&url).unwrap();
     let stream = source.subscribe("message").unwrap().map(|value| {
-        let (_, event) = value.unwrap();
+        let (_, event) = value?;
         let data = event.data().as_string().unwrap();
         let event: GameEvent = serde_json::from_str(&data).unwrap();
-        event
+        Ok(event)
     });
-    let s = create_signal_from_stream(cx, stream);
-    (s, move || source.close())
+    on_cleanup(cx, move || source.close());
+    create_signal_from_stream(cx, stream)
 }
 
 #[cfg(feature = "ssr")]
 fn subscribe_to_events(
     cx: Scope,
     _game_kind: &GameKind,
-) -> (ReadSignal<Option<GameEvent>>, impl FnOnce() + 'static) {
-    (create_signal(cx, None).0, || {})
+) -> ReadSignal<Option<Result<GameEvent, EventError>>> {
+    create_signal(cx, None).0
 }
 
 #[component]
 pub fn MultiBoard(cx: Scope, game_kind: GameKind) -> impl IntoView {
-    let (events, cleanup_events) = subscribe_to_events(cx, &game_kind);
-    on_cleanup(cx, cleanup_events);
+    let events = subscribe_to_events(cx, &game_kind);
+
     create_effect(cx, move |_| {
         let event = events.get();
         log!("event: {:?}", event);
@@ -390,7 +408,13 @@ pub fn MultiBoard(cx: Scope, game_kind: GameKind) -> impl IntoView {
     });
 
     create_effect(cx, move |_: Option<Option<()>>| {
-        let event = events.get()?;
+        let event = match events.get()? {
+            Ok(ev) => ev,
+            Err(err) => {
+                log!("err: {:?}", err);
+                return None;
+            }
+        };
         match event {
             GameEvent::CustomCreated { game_id } => set_custom_game_id.set(Some(game_id)),
             GameEvent::GameStart { game_id, .. } => {
@@ -425,7 +449,7 @@ pub fn MultiBoard(cx: Scope, game_kind: GameKind) -> impl IntoView {
         let selected = selected.get_untracked();
 
         match (event, selected) {
-            (Some(GameEvent::OpponentPlayedMove { to, .. }), Some(pos)) if pos == to => {
+            (Some(Ok(GameEvent::OpponentPlayedMove { to, .. })), Some(pos)) if pos == to => {
                 set_selected.set(None);
             }
             _ => (),
@@ -519,12 +543,25 @@ pub fn MultiBoard(cx: Scope, game_kind: GameKind) -> impl IntoView {
                 };
 
                 view! { cx,
-                <p>
-                    {format!("Custom game created with id: {}", game_id)}
-                </p>
-                <button on:click=on_copy>"copy link to clipboard"</button>
-                <p>"Waiting for opponent"</p>
-            }})}
+                    <div class="custom_game_link">
+                        <div on:click=on_copy class="big_button">
+                            <p>"Copy link"</p>
+                        </div>
+                    </div>
+                }
+            })}
+            {move || match player_infos.get().1 {
+                Some(_) => None,
+                None => {
+                    Some(view! { cx,
+                        <div>
+                            <p>"Waiting for Opponent..."</p>
+                        </div>
+                    })
+                }
+            }
+
+            }
         </div>
 
     }
