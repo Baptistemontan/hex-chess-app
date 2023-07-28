@@ -330,7 +330,10 @@ pub enum GameKind {
 }
 
 #[cfg(all(feature = "hydrate", not(feature = "ssr")))]
-fn subscribe_to_events(cx: Scope, game_kind: &GameKind) -> ReadSignal<Option<GameEvent>> {
+fn subscribe_to_events(
+    cx: Scope,
+    game_kind: &GameKind,
+) -> (ReadSignal<Option<GameEvent>>, impl FnOnce() + 'static) {
     use futures::StreamExt;
     let url = match game_kind {
         GameKind::Custom => "/api/board/new_custom_game".into(),
@@ -346,18 +349,21 @@ fn subscribe_to_events(cx: Scope, game_kind: &GameKind) -> ReadSignal<Option<Gam
         event
     });
     let s = create_signal_from_stream(cx, stream);
-    on_cleanup(cx, move || source.close());
-    s
+    (s, move || source.close())
 }
 
 #[cfg(feature = "ssr")]
-fn subscribe_to_events(cx: Scope, _game_kind: &GameKind) -> ReadSignal<Option<GameEvent>> {
-    create_signal(cx, None).0
+fn subscribe_to_events(
+    cx: Scope,
+    _game_kind: &GameKind,
+) -> (ReadSignal<Option<GameEvent>>, impl FnOnce() + 'static) {
+    (create_signal(cx, None).0, || {})
 }
 
 #[component]
 pub fn MultiBoard(cx: Scope, game_kind: GameKind) -> impl IntoView {
-    let events = subscribe_to_events(cx, &game_kind);
+    let (events, cleanup_events) = subscribe_to_events(cx, &game_kind);
+    on_cleanup(cx, cleanup_events);
     create_effect(cx, move |_| {
         let event = events.get();
         log!("event: {:?}", event);
@@ -387,13 +393,10 @@ pub fn MultiBoard(cx: Scope, game_kind: GameKind) -> impl IntoView {
         let event = events.get()?;
         match event {
             GameEvent::CustomCreated { game_id } => set_custom_game_id.set(Some(game_id)),
-            GameEvent::GameStart {
-                game_id,
-                player_color,
-            } => {
+            GameEvent::GameStart { game_id, .. } => {
+                // set_player_infos.set((player_color, Some(game_id)));
+                // set_custom_game_id.set(None);
                 navigate(&format!("/play/{}", game_id), Default::default()).unwrap();
-                set_player_infos.set((player_color, Some(game_id)));
-                set_custom_game_id.set(None);
             }
             GameEvent::OpponentPlayedMove {
                 from,
