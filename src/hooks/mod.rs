@@ -3,9 +3,10 @@ mod use_scroll;
 pub use use_scroll::*;
 
 #[cfg(feature = "hydrate")]
-use std::time::Duration;
-#[cfg(feature = "hydrate")]
-pub fn debounce_call<T>(fun: impl Fn(T) + 'static, delay: Duration) -> impl Fn(T) + 'static {
+pub fn debounce_call<T>(
+    fun: impl Fn(T) + 'static,
+    delay: std::time::Duration,
+) -> impl Fn(T) + 'static {
     use std::{cell::Cell, rc::Rc};
 
     use leptos::set_timeout;
