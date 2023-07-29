@@ -14,7 +14,7 @@ pub struct ScrollInfo {
 
 #[cfg(feature = "hydrate")]
 pub fn use_scroll(cx: Scope, top_offset: f64) -> ReadSignal<ScrollInfo> {
-    use std::cell::RefCell;
+    use std::cell::Cell;
     use std::time::Duration;
 
     use super::debounce_call;
@@ -27,20 +27,20 @@ pub fn use_scroll(cx: Scope, top_offset: f64) -> ReadSignal<ScrollInfo> {
         },
     );
 
-    let last_scroll_y = RefCell::new(window().scroll_y().unwrap_or_default());
+    let last_scroll_y = Cell::new(window().scroll_y().unwrap_or_default());
 
     let cb = move |_| {
         let new_scroll_y = window().scroll_y().unwrap_or_default();
 
         let top = new_scroll_y < top_offset;
 
-        let direction = if *last_scroll_y.borrow() < new_scroll_y {
+        let direction = if last_scroll_y.get() < new_scroll_y {
             ScrollDirection::Down
         } else {
             ScrollDirection::Up
         };
 
-        *last_scroll_y.borrow_mut() = new_scroll_y;
+        last_scroll_y.set(new_scroll_y);
 
         set_infos.set(ScrollInfo { direction, top })
     };
