@@ -20,23 +20,59 @@ use crate::server::auth::user_id::MaybeUserId;
 
 use super::GameEvent;
 
-use actix_web_lab::sse;
+use actix_web_lab::sse::{self, SendError};
+
+const TIMEOUT_DURATION: Duration = Duration::from_secs(2);
+
+pub struct Player {
+    sender: sse::Sender,
+    player_id: String,
+}
+
+async fn test_connection(sender: &sse::Sender) -> bool {
+    let future = async { sender.send(sse::Event::Comment("ping".into())).await };
+
+    actix_web::rt::time::timeout(TIMEOUT_DURATION, future)
+        .await
+        .is_ok_and(|r| r.is_ok())
+}
+
+impl Player {
+    pub fn new(sender: sse::Sender, player_id: String) -> Self {
+        Player { sender, player_id }
+    }
+
+    pub fn new_with_stream(player_id: String) -> (Self, sse::Sse<sse::ChannelStream>) {
+        let (sender, stream) = sse::channel(10);
+        (Self::new(sender, player_id), stream)
+    }
+
+    pub async fn send<E: Into<sse::Event>>(&self, event: E) -> Result<(), SendError> {
+        self.sender.send(event).await
+    }
+
+    pub async fn is_connected(&self) -> bool {
+        test_connection(&self.sender).await
+    }
+
+    pub fn has_id(&self, id: &str) -> bool {
+        self.player_id == id
+    }
+}
 
 pub struct Game {
-    white_broadcast: sse::Sender,
-    black_broadcast: sse::Sender,
+    white_player: Player,
+    black_player: Player,
     game_id: Uuid,
-    white_id: String,
-    black_id: String,
     board: Board,
     spectators: Vec<sse::Sender>,
 }
 
 impl Game {
     pub fn get_player_color(&self, player_id: String) -> Result<Color, GameError> {
-        if self.white_id == player_id {
+        if self.white_player.player_id == player_id {
             Ok(Color::White)
-        } else if self.black_id == player_id {
+        } else if self.black_player.player_id == player_id {
             Ok(Color::Black)
         } else {
             Err(GameError::InvalidPlayerId {
@@ -60,8 +96,8 @@ impl Game {
                 promote_to,
             };
             let opponent = match color {
-                Color::Black => &self.white_broadcast,
-                Color::White => &self.black_broadcast,
+                Color::Black => &self.white_player.sender,
+                Color::White => &self.black_player.sender,
             };
 
             let futs = self
@@ -90,70 +126,89 @@ impl Game {
     }
 
     pub async fn new(
-        player1: sse::Sender,
-        player2: sse::Sender,
-        player1_id: String,
-        player2_id: String,
+        player1: Player,
+        player2: Player,
         game_id: Uuid,
-    ) -> Result<Self, (sse::Sender, String)> {
+    ) -> Result<Self, Option<Player>> {
+        let players = [player1, player2];
+
+        // TODO: shuffle players
+
+        let [player1, player2] = players;
+
         let player1_color = Color::White;
         let player2_color = Color::Black;
-        let player1_ds = player1
-            .send(&GameEvent::start(game_id, player1_color))
-            .await
-            .is_err();
 
-        if player1_ds {
-            return Err((player2, player2_id));
-        }
-        let p2_ds = player2
-            .send(&GameEvent::start(game_id, player2_color))
-            .await
-            .is_err();
+        let res = futures::join!(player1.is_connected(), player2.is_connected());
 
-        if p2_ds {
-            let _ = player1.send(&GameEvent::OpponentDisconnected).await;
-            return Err((player1, player1_id));
+        match res {
+            (true, true) => {}
+            (true, false) => return Err(Some(player1)),
+            (false, true) => return Err(Some(player2)),
+            (false, false) => return Err(None),
         }
+
+        let event_p1 = GameEvent::GameStart {
+            game_id,
+            player_color: player1_color,
+        };
+        let event_p2 = GameEvent::GameStart {
+            game_id,
+            player_color: player2_color,
+        };
+
+        let _ = futures::join!(player1.send(&event_p1), player2.send(&event_p2));
 
         Ok(Game {
-            white_broadcast: player1,
-            black_broadcast: player2,
+            white_player: player1,
+            black_player: player2,
             game_id,
-            white_id: player1_id,
-            black_id: player2_id,
             board: Board::new(),
             spectators: vec![],
         })
     }
 
-    pub async fn is_stale(&self) -> bool {
-        let black_disconnected = self
-            .black_broadcast
-            .send(sse::Event::Comment("ping".into()))
-            .await
-            .is_err();
-        let white_disconnected = self
-            .white_broadcast
-            .send(sse::Event::Comment("ping".into()))
-            .await
-            .is_err();
+    async fn remove_stale_specs(&mut self) {
+        let futs = self.spectators.iter().map(test_connection);
+        let res = futures::future::join_all(futs).await;
 
-        let _ = match (black_disconnected, white_disconnected) {
+        let mut iter = res.into_iter();
+        self.spectators.retain(|_| iter.next().unwrap());
+    }
+
+    pub async fn is_stale(&mut self) -> bool {
+        // check if ended
+        if self.board.is_end().is_some() {
+            return true;
+        }
+
+        // remove stale specs
+        self.remove_stale_specs().await;
+
+        // check if all players are connected
+        let res = futures::join!(
+            self.white_player.is_connected(),
+            self.black_player.is_connected()
+        );
+
+        match res {
             (true, false) => {
-                self.white_broadcast
+                let _ = self
+                    .white_player
                     .send(&GameEvent::OpponentDisconnected)
-                    .await
+                    .await;
+                false
             }
             (false, true) => {
-                self.black_broadcast
+                let _ = self
+                    .black_player
                     .send(&GameEvent::OpponentDisconnected)
-                    .await
+                    .await;
+                false
             }
-            _ => Ok(()),
-        };
-
-        black_disconnected && white_disconnected
+            (true, true) => false,
+            (false, false) => true,
+        }
     }
 }
 
@@ -162,6 +217,7 @@ pub enum GameError {
     InvalidGameId(Uuid),
     InvalidPlayerId { game_id: Uuid },
     PlayerNotLoggedIn,
+    AllPlayerDisconnected,
 }
 
 impl Display for GameError {
@@ -170,8 +226,9 @@ impl Display for GameError {
             GameError::PlayerNotLoggedIn => write!(f, "player must be logged in."),
             GameError::InvalidGameId(game_id) => write!(f, "game with id {} don't exist.", game_id),
             GameError::InvalidPlayerId { game_id } => {
-                write!(f, "youare not a player of game {}", game_id)
+                write!(f, "you are not a player of game {}", game_id)
             }
+            GameError::AllPlayerDisconnected => f.write_str("All player disconnected."),
         }
     }
 }
@@ -186,8 +243,8 @@ impl std::error::Error for GameError {}
 
 pub struct Games {
     games: Mutex<HashMap<Uuid, Arc<Mutex<Game>>>>,
-    custom_games: Mutex<HashMap<Uuid, (sse::Sender, String)>>,
-    waiting_room: Mutex<Vec<(sse::Sender, String)>>,
+    custom_games: Mutex<HashMap<Uuid, Player>>,
+    waiting_room: Mutex<Vec<Player>>,
 }
 
 impl Default for Games {
@@ -198,7 +255,7 @@ impl Default for Games {
 
 pub enum GameState {
     Started(Arc<Mutex<Game>>),
-    Waiting(sse::Sender, String),
+    Waiting(Player),
 }
 
 impl Games {
@@ -212,46 +269,41 @@ impl Games {
         }
     }
 
-    async fn find_waiting_game(&self) -> Option<(sse::Sender, String)> {
+    async fn find_waiting_game(&self) -> Option<Player> {
         self.waiting_room.lock().await.pop()
     }
 
     pub async fn start_new_game(
         &self,
-        player1: sse::Sender,
-        player2: sse::Sender,
-        player1_id: String,
-        player2_id: String,
+        player1: Player,
+        player2: Player,
         game_id: Uuid,
-    ) -> Result<(), (sse::Sender, String)> {
-        match Game::new(player1, player2, player1_id, player2_id, game_id).await {
-            Ok(game) => {
-                println!("start game {}", game_id);
-                let game = Arc::new(Mutex::new(game));
-                self.games.lock().await.insert(game_id, game);
-                Ok(())
-            }
-            Err(sender) => Err(sender),
-        }
+    ) -> Result<(), Option<Player>> {
+        let game = Game::new(player1, player2, game_id).await?;
+        println!("start game {}", game_id);
+        let game = Arc::new(Mutex::new(game));
+        self.games.lock().await.insert(game_id, game);
+        Ok(())
     }
 
     pub async fn start_new_random_game(&self, player_id: String) -> sse::Sse<sse::ChannelStream> {
-        let (sender, stream) = sse::channel(10);
-        if let Some((opponent, opponent_id)) = self.find_waiting_game().await {
+        let (player1, stream) = Player::new_with_stream(player_id);
+        if let Some(player2) = self.find_waiting_game().await {
             let game_id = Uuid::new_v4();
             println!("start game {}", game_id);
-            match Game::new(sender, opponent, player_id, opponent_id, game_id).await {
+            match Game::new(player1, player2, game_id).await {
                 Ok(game) => {
                     let game = Arc::new(Mutex::new(game));
                     self.games.lock().await.insert(game_id, game);
                 }
-                Err((sender, player_id)) => {
-                    self.waiting_room.lock().await.push((sender, player_id));
+                Err(Some(player)) => {
+                    self.waiting_room.lock().await.push(player);
                 }
+                Err(None) => {}
             }
         } else {
             println!("waiting for opponent");
-            self.waiting_room.lock().await.push((sender, player_id));
+            self.waiting_room.lock().await.push(player1);
         }
         stream
     }
@@ -270,8 +322,8 @@ impl Games {
         }
         let mut custom_games = self.custom_games.lock().await;
 
-        if let Some((player, player_id)) = custom_games.remove(&id) {
-            return Ok(GameState::Waiting(player, player_id));
+        if let Some(player) = custom_games.remove(&id) {
+            return Ok(GameState::Waiting(player));
         }
 
         Err(GameError::InvalidGameId(id))
@@ -283,7 +335,7 @@ impl Games {
         let mut to_remove = HashSet::new();
 
         for (game_id, game) in games.iter() {
-            let game = game.lock().await;
+            let mut game = game.lock().await;
             if game.is_stale().await {
                 to_remove.insert(*game_id);
             }
@@ -298,10 +350,10 @@ impl Games {
 
     pub async fn create_custom_game(&self, player_id: String) -> sse::Sse<sse::ChannelStream> {
         let game_id = Uuid::new_v4();
-        let (player, stream) = sse::channel(10);
+        let (player, stream) = Player::new_with_stream(player_id);
         let _ = player.send(&GameEvent::CustomCreated { game_id }).await;
         let mut games = self.custom_games.lock().await;
-        games.insert(game_id, (player, player_id));
+        games.insert(game_id, player);
         println!("created custom game {}", game_id);
         stream
     }
@@ -321,8 +373,8 @@ impl Games {
         let _ = player.send(&event).await;
 
         match player_color {
-            Color::Black => game.black_broadcast = player,
-            Color::White => game.white_broadcast = player,
+            Color::Black => game.black_player.sender = player,
+            Color::White => game.white_player.sender = player,
         }
 
         stream
@@ -330,12 +382,12 @@ impl Games {
 
     async fn join_started_game(
         game: Arc<Mutex<Game>>,
-        player_id: String,
+        player_id: &str,
     ) -> Result<sse::Sse<sse::ChannelStream>, GameError> {
         let mut game = game.lock().await;
 
-        let is_black = game.black_id == player_id;
-        let is_white = game.white_id == player_id;
+        let is_black = game.black_player.has_id(player_id);
+        let is_white = game.white_player.has_id(player_id);
 
         match (is_black, is_white) {
             (true, false) => Ok(Self::join_started_game_inner(&mut game, Color::Black).await),
@@ -349,18 +401,19 @@ impl Games {
     async fn join_waiting_game(
         &self,
         game_id: Uuid,
-        player1: sse::Sender,
-        player1_id: String,
+        player1: Player,
         player2_id: String,
-    ) -> sse::Sse<sse::ChannelStream> {
-        let (player2, stream) = sse::channel(10);
-        let res = self
-            .start_new_game(player1, player2, player1_id, player2_id, game_id)
-            .await;
-        if let Err((sender, _)) = res {
-            let _ = sender.send(&GameEvent::OpponentDisconnected).await;
+    ) -> Option<sse::Sse<sse::ChannelStream>> {
+        let (player2, stream) = Player::new_with_stream(player2_id);
+        let res = self.start_new_game(player1, player2, game_id).await;
+        match res {
+            Ok(()) => Some(stream),
+            Err(Some(player)) => {
+                let _ = player.send(&GameEvent::OpponentDisconnected).await;
+                Some(stream)
+            }
+            Err(None) => None,
         }
-        stream
     }
 
     pub async fn join_game(
@@ -370,10 +423,14 @@ impl Games {
     ) -> Result<sse::Sse<sse::ChannelStream>, GameError> {
         let game = self.get_all_game_with_id(game_id).await?;
         match game {
-            GameState::Started(game) => Self::join_started_game(game, player_id).await,
-            GameState::Waiting(player1, player1_id) => Ok(self
-                .join_waiting_game(game_id, player1, player1_id, player_id)
-                .await),
+            GameState::Started(game) => Self::join_started_game(game, &player_id).await,
+            GameState::Waiting(player1) => {
+                if let Some(stream) = self.join_waiting_game(game_id, player1, player_id).await {
+                    Ok(stream)
+                } else {
+                    Err(GameError::AllPlayerDisconnected)
+                }
+            }
         }
     }
 }
