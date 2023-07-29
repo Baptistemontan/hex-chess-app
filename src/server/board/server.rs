@@ -289,17 +289,21 @@ impl Games {
     pub async fn start_new_random_game(&self, player_id: String) -> sse::Sse<sse::ChannelStream> {
         let (player1, stream) = Player::new_with_stream(player_id);
         if let Some(player2) = self.find_waiting_game().await {
-            let game_id = Uuid::new_v4();
-            println!("start game {}", game_id);
-            match Game::new(player1, player2, game_id).await {
-                Ok(game) => {
-                    let game = Arc::new(Mutex::new(game));
-                    self.games.lock().await.insert(game_id, game);
+            if player2.player_id == player1.player_id {
+                self.waiting_room.lock().await.push(player1);
+            } else {
+                let game_id = Uuid::new_v4();
+                println!("start game {}", game_id);
+                match Game::new(player1, player2, game_id).await {
+                    Ok(game) => {
+                        let game = Arc::new(Mutex::new(game));
+                        self.games.lock().await.insert(game_id, game);
+                    }
+                    Err(Some(player)) => {
+                        self.waiting_room.lock().await.push(player);
+                    }
+                    Err(None) => {}
                 }
-                Err(Some(player)) => {
-                    self.waiting_room.lock().await.push(player);
-                }
-                Err(None) => {}
             }
         } else {
             println!("waiting for opponent");
