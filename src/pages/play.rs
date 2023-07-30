@@ -89,33 +89,12 @@ pub enum GameEventKind<'a> {
     Random,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum GameEventKindWithoutId {
-    Custom,
-    Join,
-    Random,
-}
-
-impl From<&GameEventKind<'_>> for GameEventKindWithoutId {
-    fn from(value: &GameEventKind) -> Self {
-        match value {
-            GameEventKind::Custom => GameEventKindWithoutId::Custom,
-            GameEventKind::Join(_) => GameEventKindWithoutId::Join,
-            GameEventKind::Random => GameEventKindWithoutId::Random,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
-pub struct GameEventStream(EventSignal, GameEventKindWithoutId);
+pub struct GameEventStream(EventSignal);
 
 impl GameEventStream {
     pub fn new(cx: Scope, game_kind: &GameEventKind) -> Self {
-        GameEventStream(Self::subscribe_to_events(cx, game_kind), game_kind.into())
-    }
-
-    pub fn get_kind(&self) -> GameEventKindWithoutId {
-        self.1
+        GameEventStream(Self::subscribe_to_events(cx, game_kind))
     }
 
     #[cfg(all(feature = "hydrate", not(feature = "ssr")))]

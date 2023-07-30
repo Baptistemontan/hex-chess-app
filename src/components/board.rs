@@ -9,7 +9,7 @@ use leptos::*;
 use std::collections::HashSet;
 
 use crate::{
-    pages::play::{GameEventKindWithoutId, GameEventStream},
+    pages::play::GameEventStream,
     server::board::{GameEvent, PlayMove},
 };
 
@@ -440,8 +440,6 @@ pub fn MultiBoard(cx: Scope, events: GameEventStream) -> impl IntoView {
 
     let play_server_move = create_server_action::<PlayMove>(cx);
 
-    let is_random = events.get_kind() == GameEventKindWithoutId::Random;
-
     let on_select = move |pos: HexVector, promote_to: Option<PieceKind>| {
         let (color, ids) = player_infos.get();
 
@@ -522,18 +520,6 @@ pub fn MultiBoard(cx: Scope, events: GameEventStream) -> impl IntoView {
                     },
                 }
             })}
-            {move || match (player_infos.get().1, is_random) {
-                (None, true) => {
-                    Some(view! { cx,
-                        <div>
-                            <p>"Waiting for Opponent..."</p>
-                        </div>
-                    })
-                }
-                _ => None,
-            }
-
-            }
         </div>
 
     }
