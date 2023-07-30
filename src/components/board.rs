@@ -408,17 +408,17 @@ pub fn MultiBoard(cx: Scope, events: GameEventStream) -> impl IntoView {
             to,
             promote_to,
         } => {
-            if selected.get_untracked().is_some_and(|pos| pos == to) {
-                set_selected.set(None);
-            }
+            let is_in_history = board.with_untracked(|board| !board.get_next_moves().is_empty());
             set_board.update(|board| {
-                if !board.get_next_moves().is_empty() {
+                if is_in_history {
                     board.unwind_history();
-                    set_selected.set(None);
                 }
                 board.play_move(from, to, promote_to).unwrap();
-                set_last_move.set(Some((from, to)));
-            })
+            });
+            set_last_move.set(Some((from, to)));
+            if is_in_history || selected.get_untracked().is_some_and(|pos| pos == to) {
+                set_selected.set(None);
+            }
         }
         GameEvent::RejoinedGame {
             game_id,
@@ -429,7 +429,7 @@ pub fn MultiBoard(cx: Scope, events: GameEventStream) -> impl IntoView {
                 if let Some(last_move) = board.get_last_played_move() {
                     set_last_move.set(Some((last_move.from, last_move.to)));
                 }
-                set_board(board);
+                set_board.set(board);
             }
             set_player_infos.set((player_color, Some(game_id)))
         }
@@ -445,9 +445,9 @@ pub fn MultiBoard(cx: Scope, events: GameEventStream) -> impl IntoView {
     let on_select = move |pos: HexVector, promote_to: Option<PieceKind>| {
         let (color, ids) = player_infos.get();
 
+        let selected = selected.get();
         let (target_piece, is_turn) =
             board.with(|board| (board.get_piece_at(pos), board.get_player_turn() == color));
-        let selected = selected.get();
         if is_end.get().is_some() || ids.is_none() {
             return;
         }
