@@ -1,11 +1,11 @@
 use leptos::*;
 
-#[derive(Clone, Copy)]
-struct IsLoggedIn(ReadSignal<Option<bool>>);
+#[derive(Clone, Copy, Debug)]
+pub struct IsLoggedIn(pub Resource<(), bool>);
 
 impl IsLoggedIn {
-    pub fn is_logged_in(self) -> bool {
-        self.0.get().unwrap_or(false)
+    pub fn is_logged_in(self, cx: Scope) -> bool {
+        self.0.read(cx).is_some_and(|v| v)
     }
 }
 
@@ -42,11 +42,10 @@ async fn fetch_user_logged_in(cx: Scope) -> Result<bool, ServerFnError> {
 
 #[component]
 pub fn AuthentificationContext(cx: Scope, children: Children) -> impl IntoView {
-    let is_logged_in = create_signal_from_stream(
+    let is_logged_in = create_local_resource(
         cx,
-        Box::pin(futures::stream::once(async move {
-            fetch_user_logged_in(cx).await.unwrap_or(false)
-        })),
+        || (),
+        move |_| async move { fetch_user_logged_in(cx).await.unwrap_or(false) },
     );
 
     provide_context(cx, IsLoggedIn(is_logged_in));
@@ -61,7 +60,7 @@ fn render_inner<F: Fn(bool) -> bool>(
     children: &ChildrenFn,
 ) -> impl IntoView {
     logged_in
-        .map(IsLoggedIn::is_logged_in)
+        .map(|is_logged_in| is_logged_in.is_logged_in(cx))
         .and_then(|logged_in| should_render(logged_in).then(|| children(cx)))
 }
 
@@ -77,4 +76,22 @@ pub fn NotLoggedIn(cx: Scope, children: ChildrenFn) -> impl IntoView {
     let logged_in = use_context::<IsLoggedIn>(cx);
 
     move || render_inner(cx, logged_in, |logged_in| !logged_in, &children)
+}
+
+#[component]
+pub fn CheckLoggedIn(cx: Scope, children: ChildrenFn) -> impl IntoView {
+    fn render_children(cx: Scope, children: &ChildrenFn) -> impl IntoView {
+        children(cx)
+    }
+
+    let render = move |cx| render_children(cx, &children);
+
+    view! { cx,
+        <LoggedIn>
+            {render(cx)}
+        </LoggedIn>
+        <NotLoggedIn>
+            <h1>"You must be logged to play online"</h1>
+        </NotLoggedIn>
+    }
 }

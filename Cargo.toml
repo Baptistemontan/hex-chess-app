@@ -27,20 +27,29 @@ uuid = { version = "1", features = ["serde", "v4"] }
 gloo-net = { version = "0.3", optional = true }
 actix-web-lab = { version = "0.19", optional = true }
 oauth2 = { version = "4.4.1", optional = true, features = ["reqwest"] }
-actix-session = { version = "0.7.2", optional = true, features = ["cookie-session"] }
+actix-session = { version = "0.7.2", optional = true, features = [
+  "cookie-session",
+] }
 dotenvy = { version = "0.15.7", optional = true }
 reqwest = { version = "0.11.18", optional = true, features = ["json"] }
-web-sys = { version = "0.3.64", optional = true, features = ["Navigator", "Window", "Clipboard"] }
+web-sys = { version = "0.3.64", optional = true, features = [
+  "Navigator",
+  "Window",
+  "Clipboard",
+] }
+rand = { version = "0.8.5", optional = true }
+# instant = { version = "0.1", optional = true, default-features = false }
 
 [features]
 default = ["ssr", "hydrate"]
 csr = ["leptos/csr", "leptos_meta/csr", "leptos_router/csr"]
 hydrate = [
-  "leptos/hydrate", 
-  "leptos_meta/hydrate", 
-  "leptos_router/hydrate", 
-  "dep:gloo-net", 
-  "dep:web-sys"
+  "leptos/hydrate",
+  "leptos_meta/hydrate",
+  "leptos_router/hydrate",
+  # "dep:instant",
+  "dep:gloo-net",
+  "dep:web-sys",
 ]
 ssr = [
   "dep:actix-files",
@@ -52,6 +61,7 @@ ssr = [
   "dep:actix-session",
   "dep:dotenvy",
   "dep:reqwest",
+  "dep:rand",
   "leptos/ssr",
   "leptos_meta/ssr",
   "leptos_router/ssr",

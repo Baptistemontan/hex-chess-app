@@ -24,7 +24,7 @@ pub enum GameEvent {
     RejoinedGame {
         game_id: Uuid,
         player_color: Color,
-        board: Board,
+        board: Option<Board>,
     },
     OpponentPlayedMove {
         from: HexVector,

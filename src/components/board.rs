@@ -1,3 +1,4 @@
+// use gloo_net::eventsource::EventSourceError;
 use hex_chess_core::{
     board::Board,
     hex_coord::HexVector,
@@ -7,7 +8,10 @@ use hex_chess_core::{
 use leptos::*;
 use std::collections::HashSet;
 
-use crate::server::board::{GameEvent, PlayMove};
+use crate::{
+    pages::play::{GameEventKindWithoutId, GameEventStream},
+    server::board::{GameEvent, PlayMove},
+};
 
 // use leptos_meta::*;
 
@@ -294,7 +298,7 @@ fn orientation_manager<OS>(
     player_color: impl Fn() -> PieceColor + Copy + 'static,
     can_promote: ReadSignal<Option<CanPromoteMove>>,
     last_move: ReadSignal<Option<(HexVector, HexVector)>>,
-    game_kind: GameKind,
+    is_solo: bool,
     on_select: OS,
 ) -> impl IntoView
 where
@@ -303,7 +307,7 @@ where
     let (orientation, set_orientation) = create_signal(cx, Orientation::Normal);
     create_effect(cx, move |_| {
         let color = player_color();
-        if game_kind != GameKind::Solo {
+        if !is_solo {
             let orientation = match color {
                 PieceColor::Black => Orientation::Reversed,
                 PieceColor::White => Orientation::Normal,
@@ -316,61 +320,20 @@ where
     view! { cx,
         <div>
             {draw_hex_board(cx, board, orientation, selected, can_promote, last_move, player_color, on_select)}
-            <button on:click=on_switch>"switch side"</button>
+            <div on:click=on_switch class="under_board">
+                <img class="switch_button" src="/assets/icons/switch_side.svg"/>
+            </div>
         </div>
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum GameKind {
-    Custom,
-    Join(String),
-    Random,
-    Solo,
-}
-
-#[cfg(all(feature = "hydrate", not(feature = "ssr")))]
-fn subscribe_to_events(cx: Scope, game_kind: &GameKind) -> ReadSignal<Option<GameEvent>> {
-    use futures::StreamExt;
-    let url = match game_kind {
-        GameKind::Custom => "/api/board/new_custom_game".into(),
-        GameKind::Random => "/api/board/new_random_game".into(),
-        GameKind::Join(id) => format!("/api/board/join_game/{}", id),
-        GameKind::Solo => unreachable!(),
-    };
-    let mut source = gloo_net::eventsource::futures::EventSource::new(&url).unwrap();
-    let stream = source.subscribe("message").unwrap().map(|value| {
-        let (_, event) = value.unwrap();
-        let data = event.data().as_string().unwrap();
-        let event: GameEvent = serde_json::from_str(&data).unwrap();
-        event
-    });
-    let s = create_signal_from_stream(cx, stream);
-    on_cleanup(cx, move || source.close());
-    s
-}
-
-#[cfg(feature = "ssr")]
-fn subscribe_to_events(cx: Scope, _game_kind: &GameKind) -> ReadSignal<Option<GameEvent>> {
-    create_signal(cx, None).0
-}
-
 #[component]
-pub fn MultiBoard(cx: Scope, game_kind: GameKind) -> impl IntoView {
-    let events = subscribe_to_events(cx, &game_kind);
-    create_effect(cx, move |_| {
-        let event = events.get();
-        log!("event: {:?}", event);
-    });
-
-    let navigate = leptos_router::use_navigate(cx);
-
+pub fn MultiBoard(cx: Scope, events: GameEventStream) -> impl IntoView {
     let (selected, set_selected) = create_signal(cx, None);
     let (dest, set_dest) = create_signal(cx, None);
     let (can_promote, set_can_promote) = create_signal(cx, None);
     let (board, set_board) = create_signal(cx, Board::new());
     let (player_infos, set_player_infos) = create_signal(cx, (PieceColor::White, None));
-    let (custom_game_id, set_custom_game_id) = create_signal(cx, None);
 
     let (last_move, set_last_move) = create_signal(cx, None);
 
@@ -383,55 +346,47 @@ pub fn MultiBoard(cx: Scope, game_kind: GameKind) -> impl IntoView {
         }
     });
 
-    create_effect(cx, move |_: Option<Option<()>>| {
-        let event = events.get()?;
-        match event {
-            GameEvent::CustomCreated { game_id } => set_custom_game_id.set(Some(game_id)),
-            GameEvent::GameStart {
-                game_id,
-                player_color,
-            } => {
-                navigate(&format!("/play/{}", game_id), Default::default()).unwrap();
-                set_player_infos.set((player_color, Some(game_id)));
-                set_custom_game_id.set(None);
-            }
-            GameEvent::OpponentPlayedMove {
-                from,
-                to,
-                promote_to,
-            } => set_board.update(|board| {
-                board.play_move(from, to, promote_to).unwrap();
-                set_last_move.set(Some((from, to)));
-            }),
-            GameEvent::RejoinedGame {
-                game_id,
-                player_color,
-                board,
-            } => {
-                set_board(board);
-                // TODO: set last move
-                set_player_infos.set((player_color, Some(game_id)))
-            }
-            _ => (),
+    events.listen(cx, move |event| match event {
+        GameEvent::GameStart {
+            game_id,
+            player_color,
+        } => {
+            set_player_infos.set((player_color, Some(game_id)));
         }
-        None
-    });
-
-    create_effect(cx, move |_| {
-        let event = events.get();
-        let selected = selected.get_untracked();
-
-        match (event, selected) {
-            (Some(GameEvent::OpponentPlayedMove { to, .. }), Some(pos)) if pos == to => {
+        GameEvent::OpponentPlayedMove {
+            from,
+            to,
+            promote_to,
+        } => {
+            if selected.get_untracked().is_some_and(|pos| pos == to) {
                 set_selected.set(None);
             }
-            _ => (),
+            set_board.update(|board| {
+                board.play_move(from, to, promote_to).unwrap();
+                set_last_move.set(Some((from, to)));
+            })
         }
+        GameEvent::RejoinedGame {
+            game_id,
+            player_color,
+            board,
+        } => {
+            if let Some(board) = board {
+                if let Some(last_move) = board.get_last_move() {
+                    set_last_move.set(Some((last_move.from, last_move.to)));
+                }
+                set_board(board);
+            }
+            set_player_infos.set((player_color, Some(game_id)))
+        }
+        _ => (),
     });
 
     let player_color = move || player_infos.get().0;
 
     let play_server_move = create_server_action::<PlayMove>(cx);
+
+    let is_random = events.get_kind() == GameEventKindWithoutId::Random;
 
     let on_select = move |pos: HexVector, promote_to: Option<PieceKind>| {
         let (color, ids) = player_infos.get();
@@ -488,7 +443,7 @@ pub fn MultiBoard(cx: Scope, game_kind: GameKind) -> impl IntoView {
     view! { cx,
 
         <div>
-            {orientation_manager(cx, board, selected, player_color, can_promote, last_move, game_kind, on_select)}
+            {orientation_manager(cx, board, selected, player_color, can_promote, last_move, false, on_select)}
             {move || is_end.get().map(|end| {
                 match end {
                     hex_chess_core::board::GameEnd::Win(color) => {
@@ -508,20 +463,18 @@ pub fn MultiBoard(cx: Scope, game_kind: GameKind) -> impl IntoView {
                     },
                 }
             })}
-            {move || custom_game_id.get().map(|game_id| {
-                let on_copy = move |_| {
-                    if let Some(origin) = get_origin() {
-                        copy_to_clipboard(&format!("{}/play/{}", origin, game_id));
-                    }
-                };
+            {move || match (player_infos.get().1, is_random) {
+                (None, true) => {
+                    Some(view! { cx,
+                        <div>
+                            <p>"Waiting for Opponent..."</p>
+                        </div>
+                    })
+                }
+                _ => None,
+            }
 
-                view! { cx,
-                <p>
-                    {format!("Custom game created with id: {}", game_id)}
-                </p>
-                <button on:click=on_copy>"copy link to clipboard"</button>
-                <p>"Waiting for opponent"</p>
-            }})}
+            }
         </div>
 
     }
@@ -591,7 +544,7 @@ pub fn SoloBoard(cx: Scope) -> impl IntoView {
                 color,
                 can_promote,
                 last_move,
-                GameKind::Solo,
+                true,
                 on_select,
             )}
             {move || is_end.get().map(|end| {
@@ -615,29 +568,5 @@ pub fn SoloBoard(cx: Scope) -> impl IntoView {
             })}
         </div>
 
-    }
-}
-
-#[cfg(feature = "hydrate")]
-fn copy_to_clipboard(to_copy: &str) -> Option<()> {
-    let window = leptos::window();
-    let nav = window.navigator();
-    let clip = nav.clipboard()?;
-    let _ = clip.write_text(to_copy);
-    Some(())
-}
-
-#[cfg(not(feature = "hydrate"))]
-fn copy_to_clipboard(_to_copy: &str) -> Option<()> {
-    None
-}
-
-fn get_origin() -> Option<String> {
-    if cfg!(feature = "hydrate") {
-        let window = leptos::window();
-        let location = window.location();
-        location.origin().ok()
-    } else {
-        None
     }
 }
