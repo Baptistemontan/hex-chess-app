@@ -291,7 +291,7 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-fn orientation_manager<OS>(
+fn orientation_manager(
     cx: Scope,
     board: ReadSignal<Board>,
     selected: ReadSignal<Option<HexVector>>,
@@ -299,11 +299,11 @@ fn orientation_manager<OS>(
     can_promote: ReadSignal<Option<CanPromoteMove>>,
     last_move: ReadSignal<Option<(HexVector, HexVector)>>,
     is_solo: bool,
-    on_select: OS,
-) -> impl IntoView
-where
-    OS: Fn(HexVector, Option<PieceKind>) + Copy + 'static,
-{
+    on_select: impl Fn(HexVector, Option<PieceKind>) + Copy + 'static,
+    back_one_turn: impl Fn(ev::MouseEvent) + 'static,
+    advance_history: impl Fn(ev::MouseEvent) + 'static,
+    unwind_history: impl Fn(ev::MouseEvent) + 'static,
+) -> impl IntoView {
     let (orientation, set_orientation) = create_signal(cx, Orientation::Normal);
     create_effect(cx, move |_| {
         let color = player_color();
@@ -320,11 +320,61 @@ where
     view! { cx,
         <div>
             {draw_hex_board(cx, board, orientation, selected, can_promote, last_move, player_color, on_select)}
-            <div on:click=on_switch class="under_board">
-                <img class="switch_button" src="/assets/icons/switch_side.svg"/>
+            <div class="under_board">
+                <div class="history_movement">
+                    <img on:click=back_one_turn class="board_button" src="/assets/icons/backward.svg"/>
+                    <img on:click=advance_history class="board_button" src="/assets/icons/forward.svg"/>
+                    <img on:click=unwind_history class="board_button" src="/assets/icons/forward_double.svg"/>
+                </div>
+                <img on:click=on_switch class="board_button" src="/assets/icons/switch_side.svg"/>
             </div>
         </div>
     }
+}
+
+fn get_board_buttons_func(
+    set_selected: WriteSignal<Option<HexVector>>,
+    set_board: WriteSignal<Board>,
+    set_last_move: WriteSignal<Option<(HexVector, HexVector)>>,
+) -> (
+    impl Fn(ev::MouseEvent) + 'static,
+    impl Fn(ev::MouseEvent) + 'static,
+    impl Fn(ev::MouseEvent) + 'static,
+) {
+    fn inner(
+        func: impl Fn(&mut Board),
+        set_selected: WriteSignal<Option<HexVector>>,
+        set_board: WriteSignal<Board>,
+        set_last_move: WriteSignal<Option<(HexVector, HexVector)>>,
+    ) {
+        set_selected.set(None);
+        set_board.update(|board| {
+            func(board);
+            let last_move = board.get_last_played_move().map(|mov| (mov.from, mov.to));
+            set_last_move.set(last_move);
+        })
+    }
+
+    let back_one_turn =
+        move |_| inner(Board::back_one_turn, set_selected, set_board, set_last_move);
+    let advance_history = move |_| {
+        inner(
+            Board::advance_history,
+            set_selected,
+            set_board,
+            set_last_move,
+        )
+    };
+    let unwind_history = move |_| {
+        inner(
+            Board::unwind_history,
+            set_selected,
+            set_board,
+            set_last_move,
+        )
+    };
+
+    (back_one_turn, advance_history, unwind_history)
 }
 
 #[component]
@@ -362,6 +412,10 @@ pub fn MultiBoard(cx: Scope, events: GameEventStream) -> impl IntoView {
                 set_selected.set(None);
             }
             set_board.update(|board| {
+                if !board.get_next_moves().is_empty() {
+                    board.unwind_history();
+                    set_selected.set(None);
+                }
                 board.play_move(from, to, promote_to).unwrap();
                 set_last_move.set(Some((from, to)));
             })
@@ -372,7 +426,7 @@ pub fn MultiBoard(cx: Scope, events: GameEventStream) -> impl IntoView {
             board,
         } => {
             if let Some(board) = board {
-                if let Some(last_move) = board.get_last_move() {
+                if let Some(last_move) = board.get_last_played_move() {
                     set_last_move.set(Some((last_move.from, last_move.to)));
                 }
                 set_board(board);
@@ -409,11 +463,16 @@ pub fn MultiBoard(cx: Scope, events: GameEventStream) -> impl IntoView {
         }
     };
 
+    let (back_one_turn, advance_history, unwind_history) =
+        get_board_buttons_func(set_selected, set_board, set_last_move);
+
     create_effect(cx, move |_| {
         let (color, ids) = player_infos.get();
         let from = selected.get();
         let to = dest.get();
-        if board.with(|board| board.get_player_turn() != color) {
+        if board
+            .with(|board| board.get_player_turn() != color || !board.get_next_moves().is_empty())
+        {
             return;
         }
         if let (Some(game_id), Some(from), Some((to, promote_to))) = (ids, from, to) {
@@ -443,7 +502,7 @@ pub fn MultiBoard(cx: Scope, events: GameEventStream) -> impl IntoView {
     view! { cx,
 
         <div>
-            {orientation_manager(cx, board, selected, player_color, can_promote, last_move, false, on_select)}
+            {orientation_manager(cx, board, selected, player_color, can_promote, last_move, false, on_select, back_one_turn, advance_history, unwind_history)}
             {move || is_end.get().map(|end| {
                 match end {
                     hex_chess_core::board::GameEnd::Win(color) => {
@@ -535,6 +594,9 @@ pub fn SoloBoard(cx: Scope) -> impl IntoView {
 
     let color = move || board.with(Board::get_player_turn);
 
+    let (back_one_turn, advance_history, unwind_history) =
+        get_board_buttons_func(set_selected, set_board, set_last_move);
+
     view! { cx,
         <div>
             {orientation_manager(
@@ -546,6 +608,9 @@ pub fn SoloBoard(cx: Scope) -> impl IntoView {
                 last_move,
                 true,
                 on_select,
+                back_one_turn,
+                advance_history,
+                unwind_history
             )}
             {move || is_end.get().map(|end| {
                 match end {

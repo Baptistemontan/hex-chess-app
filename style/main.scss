@@ -418,28 +418,35 @@ ol, li {
 .under_board {
 	display: flex;
 	flex-direction: row;
-	justify-content: flex-end;
+	justify-content: space-between;
 	align-items: center;
 	width: 100%;
 	padding: 5px;
 	margin-top: -20px;
+  transform: translateY(-30px);
 }
 
-.switch_button {
+.board_button {
 	transition: var(--transition);
 	width: 25px;
-	transform: translateY(-30px);
 	cursor: pointer;
 	filter: invert(65%) sepia(8%) saturate(1058%) hue-rotate(187deg) brightness(88%) contrast(87%);
 }
 
-.switch_button:hover {
+.board_button:hover {
 	filter: invert(80%) sepia(49%) saturate(436%) hue-rotate(104deg) brightness(101%) contrast(103%);
+}
+
+.history_movement {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
 }
 
 .link_to_games {
 	display: flex;
-	flex-direction: row;
+	flex-direction: row;  
 	width: 40%;
 	max-width: 500px;
 	justify-content: space-between;
