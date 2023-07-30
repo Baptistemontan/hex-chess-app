@@ -1,13 +1,13 @@
 mod home_page;
 mod not_found;
-mod play;
+pub mod play;
 
 use home_page::HomePage;
 use leptos::*;
 use leptos_meta::*;
 use leptos_router::*;
 use not_found::NotFound;
-use play::{Custom, Join, Random};
+use play::{Play, WaitingCustom, WaitingCustomWithId, WaitingRandom};
 
 use crate::components::auth::AuthentificationContext;
 use crate::components::layout::Layout;
@@ -26,9 +26,10 @@ pub fn App(cx: Scope) -> impl IntoView {
                 <Layout>
                         <Routes>
                             <Route path="/" view=HomePage />
-                            <Route path="/play/:game_id" view=Join />
-                            <Route path="/play/random" view=Random />
-                            <Route path="/play/custom" view=Custom />
+                            <Route path="/play/random" view=WaitingRandom/>
+                            <Route path="/play/custom" view=WaitingCustom/>
+                            <Route path="/play/custom/:game_id" view=WaitingCustomWithId/>
+                            <Route path="/play/:game_id" view=Play/>
                             <Route path="/*any" view=NotFound />
                         </Routes>
                     </Layout>

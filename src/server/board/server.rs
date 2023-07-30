@@ -9,6 +9,7 @@ use hex_chess_core::{
     piece::{Color, PieceKind},
 };
 use leptos::ServerFnError;
+use rand::seq::SliceRandom;
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
@@ -130,9 +131,11 @@ impl Game {
         player2: Player,
         game_id: Uuid,
     ) -> Result<Self, Option<Player>> {
-        let players = [player1, player2];
+        let mut players = [player1, player2];
 
-        // TODO: shuffle players
+        let mut rng = rand::thread_rng();
+
+        players.shuffle(&mut rng);
 
         let [player1, player2] = players;
 
@@ -287,15 +290,19 @@ impl Games {
     }
 
     pub async fn start_new_random_game(&self, player_id: String) -> sse::Sse<sse::ChannelStream> {
-        let (player1, stream) = Player::new_with_stream(player_id);
+        let (player1, stream) = Player::new_with_stream(player_id.clone());
         if let Some(player2) = self.find_waiting_game().await {
             if player2.player_id == player1.player_id {
                 self.waiting_room.lock().await.push(player1);
             } else {
+                let player2_id = player2.player_id.clone();
                 let game_id = Uuid::new_v4();
-                println!("start game {}", game_id);
                 match Game::new(player1, player2, game_id).await {
                     Ok(game) => {
+                        println!(
+                            "Started random game {} with player {} and player {}",
+                            game_id, player_id, player2_id
+                        );
                         let game = Arc::new(Mutex::new(game));
                         self.games.lock().await.insert(game_id, game);
                     }
@@ -306,7 +313,7 @@ impl Games {
                 }
             }
         } else {
-            println!("waiting for opponent");
+            println!("Player with id {} is waiting for opponent", player_id);
             self.waiting_room.lock().await.push(player1);
         }
         stream
@@ -368,10 +375,12 @@ impl Games {
     ) -> sse::Sse<sse::ChannelStream> {
         let (player, stream) = sse::channel(10);
 
+        let board = game.board.has_started().then(|| game.board.clone());
+
         let event = GameEvent::RejoinedGame {
             game_id: game.game_id,
             player_color,
-            board: game.board.clone(),
+            board,
         };
 
         let _ = player.send(&event).await;
@@ -383,7 +392,6 @@ impl Games {
 
         stream
     }
-
     async fn join_started_game(
         game: Arc<Mutex<Game>>,
         player_id: &str,
@@ -394,8 +402,20 @@ impl Games {
         let is_white = game.white_player.has_id(player_id);
 
         match (is_black, is_white) {
-            (true, false) => Ok(Self::join_started_game_inner(&mut game, Color::Black).await),
-            (false, true) => Ok(Self::join_started_game_inner(&mut game, Color::White).await),
+            (true, false) => {
+                println!(
+                    "Player {} successfully rejoined game {}",
+                    player_id, game.game_id
+                );
+                Ok(Self::join_started_game_inner(&mut game, Color::Black).await)
+            }
+            (false, true) => {
+                println!(
+                    "Player {} successfully rejoined game {}",
+                    player_id, game.game_id
+                );
+                Ok(Self::join_started_game_inner(&mut game, Color::White).await)
+            }
             _ => Err(GameError::InvalidPlayerId {
                 game_id: game.game_id,
             }),
@@ -429,9 +449,27 @@ impl Games {
         match game {
             GameState::Started(game) => Self::join_started_game(game, &player_id).await,
             GameState::Waiting(player1) => {
-                if let Some(stream) = self.join_waiting_game(game_id, player1, player_id).await {
+                if player1.has_id(&player_id) {
+                    println!(
+                        "Player with id {} rejoined witing custom game with id {}",
+                        player_id, game_id
+                    );
+                    let (player, stream) = Player::new_with_stream(player_id);
+                    let _ = player.send(&GameEvent::WaitingForOpponent).await;
+                    let mut custom_games = self.custom_games.lock().await;
+                    custom_games.insert(game_id, player);
+                    Ok(stream)
+                } else if let Some(stream) = self
+                    .join_waiting_game(game_id, player1, player_id.clone())
+                    .await
+                {
+                    println!(
+                        "Player with id {} joined custom game {} and started it",
+                        player_id, game_id
+                    );
                     Ok(stream)
                 } else {
+                    println!("All player disconnected from game {}", game_id);
                     Err(GameError::AllPlayerDisconnected)
                 }
             }
@@ -467,12 +505,15 @@ pub async fn get_player_id(cx: leptos::Scope) -> Result<String, ServerFnError> {
 #[get("new_random_game")]
 async fn random_game(player_id: MaybeUserId) -> Result<sse::Sse<sse::ChannelStream>, GameError> {
     let id = check_id(player_id)?;
+
+    println!("Player with id {} is waiting for random game", id);
     Ok(GAMES.start_new_random_game(id).await)
 }
 
 #[get("new_custom_game")]
 async fn custom_game(player_id: MaybeUserId) -> Result<sse::Sse<sse::ChannelStream>, GameError> {
     let id = check_id(player_id)?;
+    println!("Player with id {} asked to create custom game", id);
     Ok(GAMES.create_custom_game(id).await)
 }
 
@@ -483,7 +524,7 @@ async fn join_game(
 ) -> Result<sse::Sse<sse::ChannelStream>, GameError> {
     let id = check_id(player_id)?;
     let game_id = game_id.into_inner();
-    println!("try joining game {}", game_id);
+    println!("User with id {} try joining game {}", id, game_id);
     GAMES.join_game(game_id, id).await
 }
 

@@ -2,6 +2,7 @@ mod components;
 pub mod hooks;
 pub mod pages;
 pub mod server;
+pub mod utils;
 use cfg_if::cfg_if;
 
 cfg_if! {

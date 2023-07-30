@@ -37,6 +37,7 @@ web-sys = { version = "0.3.64", optional = true, features = [
   "Window",
   "Clipboard",
 ] }
+rand = { version = "0.8.5", optional = true }
 # instant = { version = "0.1", optional = true, default-features = false }
 
 [features]
@@ -60,6 +61,7 @@ ssr = [
   "dep:actix-session",
   "dep:dotenvy",
   "dep:reqwest",
+  "dep:rand",
   "leptos/ssr",
   "leptos_meta/ssr",
   "leptos_router/ssr",
