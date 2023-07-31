@@ -95,20 +95,22 @@ impl Iterator for GridIterator {
     }
 }
 
-fn get_piece_url(piece: Piece) -> String {
-    let color = match piece.color {
-        PieceColor::Black => 'b',
-        PieceColor::White => 'w',
+fn get_piece_url_and_alt(piece: Piece) -> (String, String) {
+    let (color_url, color) = match piece.color {
+        PieceColor::Black => ('b', "black"),
+        PieceColor::White => ('w', "white"),
     };
-    let kind = match piece.kind {
-        PieceKind::OriginalPawn | PieceKind::Pawn => 'p',
-        PieceKind::Knight => 'n',
-        PieceKind::Bishop => 'b',
-        PieceKind::Rook => 'r',
-        PieceKind::King => 'k',
-        PieceKind::Queen => 'q',
+    let (kind_url, kind) = match piece.kind {
+        PieceKind::OriginalPawn | PieceKind::Pawn => ('p', "pawn"),
+        PieceKind::Knight => ('n', "knight"),
+        PieceKind::Bishop => ('b', "bishop"),
+        PieceKind::Rook => ('r', "rook"),
+        PieceKind::King => ('k', "king"),
+        PieceKind::Queen => ('q', "queen"),
     };
-    format!("/assets/pieces/{color}{kind}.png")
+    let url = format!("/assets/pieces/{}{}.png", color_url, kind_url);
+    let alt = format!("{} {}", color, kind);
+    (url, alt)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -155,7 +157,7 @@ where
 
     let piece = create_memo(cx, move |_| board.get().get_piece_at(vector()));
 
-    let piece_image_url = create_memo(cx, move |_| piece.get().map(get_piece_url));
+    let piece_image_url = create_memo(cx, move |_| piece.get().map(get_piece_url_and_alt));
 
     let is_move_dest = create_memo(cx, move |_| {
         legal_moves.with(|moves| {
@@ -198,9 +200,10 @@ where
                 class=("hex-grid__content__is_dest", move || is_move_dest.get() && !is_piece_and_dest())
                 class=("hex-grid__content__is_piece_and_dest", is_piece_and_dest)
             >
-                {move || piece_image_url.get().map(|url| {
+                {move || piece_image_url.get().map(|(url, alt)| {
+                    let alt = format!("icon for a {}", alt);
                     view! { cx,
-                        <img class="piece_image" src=url />
+                        <img class="piece_image" src=url alt=alt />
                     }
                 })}
             </div>
@@ -217,9 +220,11 @@ where
     F: Fn(PieceKind) + Copy + 'static,
 {
     let on_click = move |_| promote_fn(piece.kind);
-    let piece_url = get_piece_url(piece);
+    let (piece_url, alt) = get_piece_url_and_alt(piece);
+    let title = format!("Promote to a {}", alt);
+    let alt = format!("button icon to promote to a {}", alt);
     view! { cx,
-        <img on:click=on_click class="piece_image" src=piece_url />
+        <img on:click=on_click class="piece_image" src=piece_url alt=alt title=title />
     }
 }
 
@@ -322,11 +327,11 @@ fn orientation_manager(
             {draw_hex_board(cx, board, orientation, selected, can_promote, last_move, player_color, on_select)}
             <div class="under_board">
                 <div class="history_movement">
-                    <img on:click=back_one_turn class="board_button" src="/assets/icons/backward.svg"/>
-                    <img on:click=advance_history class="board_button" src="/assets/icons/forward.svg"/>
-                    <img on:click=unwind_history class="board_button" src="/assets/icons/forward_double.svg"/>
+                    <img on:click=back_one_turn class="board_button" src="/assets/icons/backward.svg" alt="button icon for going back one turn" title="Go back one turn"/>
+                    <img on:click=advance_history class="board_button" src="/assets/icons/forward.svg" alt="button icon for advancing one turn in the history" title="Advance by one turn"/>
+                    <img on:click=unwind_history class="board_button" src="/assets/icons/forward_double.svg" alt="button icon for going back to last turn in history" title="Go to last turn"/>
                 </div>
-                <img on:click=on_switch class="board_button" src="/assets/icons/switch_side.svg"/>
+                <img on:click=on_switch class="board_button" src="/assets/icons/switch_side.svg" alt="button icon for switching the orientation of the board" title="Switch board orientation"/>
             </div>
         </div>
     }
