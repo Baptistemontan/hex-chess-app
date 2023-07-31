@@ -2,11 +2,11 @@ use crate::components::auth::CheckLoggedIn;
 use crate::components::board::MultiBoard;
 use crate::server::board::GameEvent;
 use leptos::*;
+use leptos_meta::*;
 use leptos_router::*;
 
 #[component]
 pub fn WaitingRandom(cx: Scope) -> impl IntoView {
-    log!("random");
     let navigate = leptos_router::use_navigate(cx);
     let events = GameEventStream::new(cx, &GameEventKind::Random);
 
@@ -17,6 +17,7 @@ pub fn WaitingRandom(cx: Scope) -> impl IntoView {
     });
 
     view! { cx,
+        <Title text="Hex Chess | Waiting for opponent..."/>
         <CheckLoggedIn>
             <p>"Waiting for Opponent ..."</p>
         </CheckLoggedIn>
@@ -36,6 +37,7 @@ pub fn WaitingCustom(cx: Scope) -> impl IntoView {
     });
 
     view! { cx,
+        <Title text="Hex Chess | Creating custom game..."/>
         <CheckLoggedIn>
             <p>"Game is being created ..."</p>
         </CheckLoggedIn>
@@ -72,6 +74,7 @@ pub fn WaitingCustomWithId(cx: Scope) -> impl IntoView {
     };
 
     view! { cx,
+        <Title text="Hex Chess | Waiting for opponent..."/>
         <CheckLoggedIn>
             <div class="custom_game_link">
                 {render(cx)}
@@ -154,6 +157,7 @@ pub fn Play(cx: Scope) -> impl IntoView {
     };
 
     view! { cx,
+        <Title text="Hex Chess | Playing"/>
         <CheckLoggedIn>
             <div class="board">
                 {render(cx)}
