@@ -1688,7 +1688,7 @@ dependencies = [
 [[package]]
 name = "leptos_i18n"
 version = "0.1.0"
-source = "git+https://github.com/Baptistemontan/leptos_i18n#3db14d3dadefab185eff9cef7f4da471b9522566"
+source = "git+https://github.com/Baptistemontan/leptos_i18n#18ea91f39557b1a88a1a656d84f723d5403672be"
 dependencies = [
  "actix-web",
  "lazy_static",
