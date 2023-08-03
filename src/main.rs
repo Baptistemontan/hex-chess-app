@@ -31,6 +31,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .service(web::scope("/api/board").configure(board::server::config))
             .service(web::scope("/api/auth").configure(auth::config))
+            .configure(leptos_i18n::config)
             .route("/api/{tail:.*}", leptos_actix::handle_server_fns())
             // serve JS/WASM/CSS from `pkg`
             .service(Files::new("/pkg", format!("{site_root}/pkg")))
@@ -38,6 +39,7 @@ async fn main() -> std::io::Result<()> {
             .service(Files::new("/assets", site_root))
             // serve the favicon from /favicon.ico
             .service(favicon)
+            .service(manifest)
             .leptos_routes(
                 leptos_options.to_owned(),
                 routes.to_owned(),
@@ -66,6 +68,17 @@ async fn favicon(
     let site_root = &leptos_options.site_root;
     Ok(actix_files::NamedFile::open(format!(
         "{site_root}/favicon.ico"
+    ))?)
+}
+#[cfg(feature = "ssr")]
+#[actix_web::get("manifest.json")]
+async fn manifest(
+    leptos_options: actix_web::web::Data<leptos::LeptosOptions>,
+) -> actix_web::Result<actix_files::NamedFile> {
+    let leptos_options = leptos_options.into_inner();
+    let site_root = &leptos_options.site_root;
+    Ok(actix_files::NamedFile::open(format!(
+        "{site_root}/manifest.json"
     ))?)
 }
 
