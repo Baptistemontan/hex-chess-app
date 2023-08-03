@@ -11,9 +11,7 @@ async fn main() -> std::io::Result<()> {
         cookie::Key::generate()
     }
 
-    if dotenvy::dotenv().is_err() {
-        dotenvy::from_filename("./hex-chess-app/.env").ok();
-    }
+    dotenvy::dotenv().ok();
 
     let conf = get_configuration(None).await.unwrap();
     let addr = conf.leptos_options.site_addr;

@@ -18,7 +18,6 @@ pub fn HomePage(cx: Scope) -> impl IntoView {
     });
 
     view! { cx,
-
         <Title text="Hex Chess | Home"/>
         <h1 class="title">{t!(cx, "title")}</h1>
         <div class="board">

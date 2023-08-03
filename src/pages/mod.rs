@@ -23,6 +23,7 @@ pub fn App(cx: Scope) -> impl IntoView {
         // id=leptos means cargo-leptos will hot-reload this stylesheet
         <Stylesheet id="leptos" href="/pkg/hex-chess-app.css"/>
         <Link rel="manifest" href="/manifest.json"/>
+        <Meta name="description" content="Website to play hexagonal chess, solo or with friends." />
         <I18nContextProvider>
         <AuthentificationContext>
             <Router>
