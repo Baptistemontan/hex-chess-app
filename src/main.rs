@@ -19,12 +19,12 @@ async fn main() -> std::io::Result<()> {
     let routes = generate_route_list(|cx| view! { cx, <App/> });
 
     let auth_client = auth::auth_client::AuthClient::new().unwrap();
+    let auth_client = web::Data::new(auth_client);
 
     let secret_key = get_secret_key();
 
     let base_url = web::Data::new(BaseUrl::new());
     let leptos_options = web::Data::new(conf.leptos_options);
-    let auth_client = web::Data::new(auth_client);
 
     HttpServer::new(move || {
         App::new()
@@ -43,11 +43,11 @@ async fn main() -> std::io::Result<()> {
             .service(favicon)
             .service(manifest)
             .leptos_routes(
-                LeptosOptions::to_owned(&leptos_options),
-                routes.to_owned(),
+                leptos_options.get_ref().clone(),
+                routes.clone(),
                 |cx| view! { cx, <App/> },
             )
-            .app_data(leptos_options.clone())
+            .app_data(web::Data::clone(&leptos_options))
             .app_data(auth_client.clone())
             .app_data(base_url.clone())
             .wrap(actix_session::SessionMiddleware::new(

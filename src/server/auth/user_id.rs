@@ -4,11 +4,14 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::Poll;
 
+use actix_session::Session;
 use actix_web::{http::header, web, FromRequest, HttpResponse, ResponseError};
 
 use crate::server::auth::COOKIE_TOKEN_KEY;
 
 use super::auth_client::AuthClient;
+
+const SESSION_USER_ID: &str = "session_user_id_key";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MaybeUserId(pub Option<String>);
@@ -79,6 +82,12 @@ impl FromRequest for MaybeUserId {
             return MaybeFuture::new_value(Ok(MaybeUserId(None)));
         };
 
+        let session = Session::extract(req).into_inner().unwrap();
+
+        if let Some(user_id) = session.get::<String>(SESSION_USER_ID).ok().flatten() {
+            return MaybeFuture::new_value(Ok(MaybeUserId(Some(user_id))));
+        }
+
         let client = match web::Data::<AuthClient>::from_request(req, payload).into_inner() {
             Ok(client) => client,
             Err(err) => return MaybeFuture::new_value(Err(err)),
@@ -88,6 +97,7 @@ impl FromRequest for MaybeUserId {
 
         let fut = async move {
             let id = client.get_id(&token).await?;
+            session.insert(SESSION_USER_ID, &id).ok();
             Ok(MaybeUserId(Some(id)))
         };
 

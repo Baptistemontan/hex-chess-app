@@ -9,5 +9,7 @@
     "not_found": "Contenu Introuvable",
     "waiting": "En attente d'un adversaire ...",
     "creating": "La partie est en cours de création ...",
-    "copy_link": "Copier le lien"
+    "copy_link": "Copier le lien",
+    "english_flag_icon_alt": "Drapeau Anglais, icone pour changer la lang en anglais",
+    "french_flag_icon_alt": "Drapeau Français, icone pour changer la lang en français"
 }
