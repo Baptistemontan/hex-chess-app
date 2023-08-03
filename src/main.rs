@@ -19,35 +19,37 @@ async fn main() -> std::io::Result<()> {
     let routes = generate_route_list(|cx| view! { cx, <App/> });
 
     let auth_client = auth::auth_client::AuthClient::new().unwrap();
+    let auth_client = web::Data::new(auth_client);
 
     let secret_key = get_secret_key();
 
-    let base_url = BaseUrl::new();
+    let base_url = web::Data::new(BaseUrl::new());
+    let leptos_options = web::Data::new(conf.leptos_options);
 
     HttpServer::new(move || {
-        let leptos_options = &conf.leptos_options;
-        let site_root = &leptos_options.site_root;
-
         App::new()
             .service(web::scope("/api/board").configure(board::server::config))
             .service(web::scope("/api/auth").configure(auth::config))
             .configure(leptos_i18n::config)
             .route("/api/{tail:.*}", leptos_actix::handle_server_fns())
             // serve JS/WASM/CSS from `pkg`
-            .service(Files::new("/pkg", format!("{site_root}/pkg")))
+            .service(Files::new(
+                "/pkg",
+                format!("{}/pkg", leptos_options.site_root),
+            ))
             // serve other assets from the `assets` directory
-            .service(Files::new("/assets", site_root))
+            .service(Files::new("/assets", &leptos_options.site_root))
             // serve the favicon from /favicon.ico
             .service(favicon)
             .service(manifest)
             .leptos_routes(
-                leptos_options.to_owned(),
-                routes.to_owned(),
+                leptos_options.get_ref().clone(),
+                routes.clone(),
                 |cx| view! { cx, <App/> },
             )
-            .app_data(web::Data::new(leptos_options.to_owned()))
-            .app_data(web::Data::new(auth_client.clone()))
-            .app_data(web::Data::new(base_url.clone()))
+            .app_data(web::Data::clone(&leptos_options))
+            .app_data(auth_client.clone())
+            .app_data(base_url.clone())
             .wrap(actix_session::SessionMiddleware::new(
                 actix_session::storage::CookieSessionStore::default(),
                 secret_key.clone(),
