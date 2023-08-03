@@ -4,6 +4,7 @@ pub mod play;
 
 use home_page::HomePage;
 use leptos::*;
+use leptos_i18n::I18nContextProvider;
 use leptos_meta::*;
 use leptos_router::*;
 use not_found::NotFound;
@@ -21,6 +22,8 @@ pub fn App(cx: Scope) -> impl IntoView {
         // injects a stylesheet into the document <head>
         // id=leptos means cargo-leptos will hot-reload this stylesheet
         <Stylesheet id="leptos" href="/pkg/hex-chess-app.css"/>
+        <Link rel="manifest" href="/manifest.json"/>
+        <I18nContextProvider>
         <AuthentificationContext>
             <Router>
                 <Layout>
@@ -35,5 +38,6 @@ pub fn App(cx: Scope) -> impl IntoView {
                     </Layout>
             </Router>
         </AuthentificationContext>
+        </I18nContextProvider>
     }
 }

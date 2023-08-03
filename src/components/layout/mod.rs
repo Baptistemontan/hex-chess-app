@@ -1,5 +1,6 @@
 mod footer;
 mod header;
+
 use leptos::*;
 
 #[component]

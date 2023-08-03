@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use leptos::*;
+use leptos_i18n::t;
 
 #[derive(Clone, Copy, Debug)]
 pub struct IsLoggedIn(pub bool);
@@ -94,7 +95,7 @@ pub fn CheckLoggedIn(cx: Scope, children: ChildrenFn) -> impl IntoView {
             {render(cx)}
         </LoggedIn>
         <NotLoggedIn>
-            <h1>"You must be logged to play online"</h1>
+            <h1>{t!(cx, "not_logged_in")}</h1>
         </NotLoggedIn>
     }
 }
