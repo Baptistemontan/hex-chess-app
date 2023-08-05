@@ -24,7 +24,7 @@ pub fn header(cx: Scope) -> impl IntoView {
         >
             <nav>
                 <a href="/">
-                    <h1 class="title">"Hex Chess"</h1>
+                    <h1>"Hex Chess"</h1>
                 </a>
                 <div class="topLinks">
                     {navigation_list(cx)}
