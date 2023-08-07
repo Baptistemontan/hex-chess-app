@@ -1688,11 +1688,10 @@ dependencies = [
 [[package]]
 name = "leptos_i18n"
 version = "0.1.0"
-source = "git+https://github.com/Baptistemontan/leptos_i18n#7c866c4fac0d9bed9a2ac57a7f663928a958c342"
+source = "git+https://github.com/Baptistemontan/leptos_i18n#566a406c25bb82afb171512f8fcdf1fed0761c8d"
 dependencies = [
  "actix-web",
  "leptos",
- "leptos_actix",
  "leptos_i18n_macro",
  "leptos_meta",
  "serde",
@@ -1703,7 +1702,7 @@ dependencies = [
 [[package]]
 name = "leptos_i18n_macro"
 version = "0.1.0"
-source = "git+https://github.com/Baptistemontan/leptos_i18n#7c866c4fac0d9bed9a2ac57a7f663928a958c342"
+source = "git+https://github.com/Baptistemontan/leptos_i18n#566a406c25bb82afb171512f8fcdf1fed0761c8d"
 dependencies = [
  "proc-macro2",
  "quote",
