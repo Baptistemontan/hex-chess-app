@@ -1,7 +1,7 @@
 use leptos::*;
 use leptos_meta::*;
 
-use leptos_i18n::t;
+use crate::t;
 
 /// 404 - Not Found
 #[component]
@@ -22,6 +22,6 @@ pub fn NotFound(cx: Scope) -> impl IntoView {
 
     view! { cx,
         <Title text="Hex Chess | Not Found"/>
-        <h1>{t!(cx, "not_found")}</h1>
+        <h1>{t!(cx, not_found)}</h1>
     }
 }

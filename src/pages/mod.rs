@@ -2,6 +2,7 @@ mod home_page;
 mod not_found;
 pub mod play;
 
+use crate::i18n::Locales;
 use home_page::HomePage;
 use leptos::*;
 use leptos_i18n::I18nContextProvider;
@@ -24,7 +25,7 @@ pub fn App(cx: Scope) -> impl IntoView {
         <Stylesheet id="leptos" href="/pkg/hex-chess-app.css"/>
         <Link rel="manifest" href="/manifest.json"/>
         <Meta name="description" content="Website to play hexagonal chess, solo or with friends." />
-        <I18nContextProvider>
+        <I18nContextProvider locales=Locales>
         <AuthentificationContext>
             <Router>
                 <Layout>

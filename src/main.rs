@@ -30,7 +30,6 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .service(web::scope("/api/board").configure(board::server::config))
             .service(web::scope("/api/auth").configure(auth::config))
-            .configure(leptos_i18n::config)
             .route("/api/{tail:.*}", leptos_actix::handle_server_fns())
             // serve JS/WASM/CSS from `pkg`
             .service(Files::new(

@@ -4,6 +4,7 @@ pub mod pages;
 pub mod server;
 pub mod utils;
 use cfg_if::cfg_if;
+pub use utils::i18n;
 
 cfg_if! {
 if #[cfg(feature = "hydrate")] {

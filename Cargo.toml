@@ -43,7 +43,7 @@ rand = { version = "0.8.5", optional = true }
 # instant = { version = "0.1", optional = true, default-features = false }
 
 [features]
-default = ["ssr", "hydrate"]
+default = ["ssr"]
 csr = ["leptos/csr", "leptos_meta/csr", "leptos_router/csr"]
 hydrate = [
   "leptos/hydrate",
@@ -68,7 +68,7 @@ ssr = [
   "leptos/ssr",
   "leptos_meta/ssr",
   "leptos_router/ssr",
-  "leptos_i18n/ssr",
+  "leptos_i18n/actix",
 ]
 
 [package.metadata.leptos]

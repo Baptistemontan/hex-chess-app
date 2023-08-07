@@ -1,8 +1,8 @@
 use crate::hooks::{use_scroll, ScrollDirection};
 
 use super::super::auth::{LoggedIn, NotLoggedIn};
+use crate::t;
 use leptos::*;
-use leptos_i18n::t;
 
 pub fn header(cx: Scope) -> impl IntoView {
     let scroll_infos = use_scroll(cx, 50.0);
@@ -35,18 +35,12 @@ pub fn header(cx: Scope) -> impl IntoView {
     }
 }
 
-const LINKS: &[(&str, &str)] = &[("about", "/about")];
-
 pub fn navigation_list(cx: Scope) -> impl IntoView {
     view! { cx,
         <ol>
-            {LINKS.iter().copied().map(move |(tkey, path)| {
-                view! { cx,
-                    <li class="link">
-                        <a href=path>{t!(cx, tkey)}</a>
-                    </li>
-                }
-            }).collect_view(cx)}
+            <li class="link">
+                <a href="/about">{t!(cx, about)}</a>
+            </li>
         </ol>
     }
 }
@@ -59,10 +53,10 @@ pub fn login_button(cx: Scope) -> impl IntoView {
     view! { cx,
         <div class="big_button">
             <LoggedIn>
-                <a href="/api/auth/logout" rel="external">{t!(cx, "logout")}</a>
+                <a href="/api/auth/logout" rel="external">{t!(cx, logout)}</a>
             </LoggedIn>
             <NotLoggedIn>
-                <a href=login_url rel="external">{t!(cx, "login")}</a>
+                <a href=login_url rel="external">{t!(cx, login)}</a>
             </NotLoggedIn>
         </div>
     }
