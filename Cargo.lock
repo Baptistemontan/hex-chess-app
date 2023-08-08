@@ -1688,7 +1688,7 @@ dependencies = [
 [[package]]
 name = "leptos_i18n"
 version = "0.1.0"
-source = "git+https://github.com/Baptistemontan/leptos_i18n#566a406c25bb82afb171512f8fcdf1fed0761c8d"
+source = "git+https://github.com/Baptistemontan/leptos_i18n#cae19739fa3bdb10bc186991a3a0f9537a069038"
 dependencies = [
  "actix-web",
  "leptos",
@@ -1702,7 +1702,7 @@ dependencies = [
 [[package]]
 name = "leptos_i18n_macro"
 version = "0.1.0"
-source = "git+https://github.com/Baptistemontan/leptos_i18n#566a406c25bb82afb171512f8fcdf1fed0761c8d"
+source = "git+https://github.com/Baptistemontan/leptos_i18n#cae19739fa3bdb10bc186991a3a0f9537a069038"
 dependencies = [
  "proc-macro2",
  "quote",

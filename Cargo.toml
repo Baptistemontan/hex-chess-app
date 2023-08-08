@@ -20,7 +20,7 @@ wasm-bindgen = "=0.2.87"
 serde = { version = "1", features = ["derive"] }
 hex-chess-core = { git = "https://github.com/Baptistemontan/hex-chess-core" }
 # hex-chess-core = { path = "../hex-chess-core" }
-leptos_i18n = { git = "https://github.com/Baptistemontan/leptos_i18n", default-features = false }
+leptos_i18n = { git = "https://github.com/Baptistemontan/leptos_i18n" }
 # leptos_i18n = { path = "../leptos_i18n/leptos_i18n", default-features = false }
 lazy_static = { version = "1", optional = true }
 futures = "0.3"
