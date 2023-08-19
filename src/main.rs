@@ -1,6 +1,6 @@
 #[cfg(feature = "ssr")]
 #[actix_web::main]
-async fn main() -> std::io::Result<()> {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     use actix_files::Files;
     use actix_web::*;
     use hex_chess_app::{pages::App, server::*};
@@ -12,6 +12,8 @@ async fn main() -> std::io::Result<()> {
     }
 
     dotenvy::dotenv().ok();
+
+    let pool = db::create_db_pool().await?;
 
     let conf = get_configuration(None).await.unwrap();
     let addr = conf.leptos_options.site_addr;
@@ -47,6 +49,7 @@ async fn main() -> std::io::Result<()> {
                 |cx| view! { cx, <App/> },
             )
             .app_data(web::Data::clone(&leptos_options))
+            .app_data(web::Data::clone(&pool))
             .app_data(auth_client.clone())
             .app_data(base_url.clone())
             .wrap(actix_session::SessionMiddleware::new(
@@ -57,7 +60,9 @@ async fn main() -> std::io::Result<()> {
     })
     .bind(&addr)?
     .run()
-    .await
+    .await?;
+
+    Ok(())
 }
 
 #[cfg(feature = "ssr")]
