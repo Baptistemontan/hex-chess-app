@@ -1,0 +1,15 @@
+{
+    "login": "login",
+    "logout": "logout",
+    "random": "Partie aléatoire",
+    "custom": "Jouer avec un ami",
+    "about": "À Propos",
+    "not_logged_in": "Vous devez être connecté pour jouer en ligne",
+    "title": "Bienvenue sur Hex Chess!",
+    "not_found": "Contenu Introuvable",
+    "waiting": "En attente d'un adversaire ...",
+    "creating": "La partie est en cours de création ...",
+    "copy_link": "Copier le lien",
+    "english_flag_icon_alt": "Drapeau Anglais, icone pour changer la lang en anglais",
+    "french_flag_icon_alt": "Drapeau Français, icone pour changer la lang en français"
+}

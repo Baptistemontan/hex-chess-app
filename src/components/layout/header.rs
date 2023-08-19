@@ -1,6 +1,7 @@
 use crate::hooks::{use_scroll, ScrollDirection};
 
 use super::super::auth::{LoggedIn, NotLoggedIn};
+use crate::t;
 use leptos::*;
 
 pub fn header(cx: Scope) -> impl IntoView {
@@ -23,7 +24,7 @@ pub fn header(cx: Scope) -> impl IntoView {
         >
             <nav>
                 <a href="/">
-                    <h1 class="title">"Hex Chess"</h1>
+                    <h1>"Hex Chess"</h1>
                 </a>
                 <div class="topLinks">
                     {navigation_list(cx)}
@@ -34,18 +35,12 @@ pub fn header(cx: Scope) -> impl IntoView {
     }
 }
 
-const LINKS: &[(&str, &str)] = &[("About", "/about")];
-
 pub fn navigation_list(cx: Scope) -> impl IntoView {
     view! { cx,
         <ol>
-            {LINKS.iter().copied().map(move |(text, path)| {
-                view! { cx,
-                    <li class="link">
-                        <a href=path>{text}</a>
-                    </li>
-                }
-            }).collect_view(cx)}
+            <li class="link">
+                <a href="/about">{t!(cx, about)}</a>
+            </li>
         </ol>
     }
 }
@@ -58,10 +53,10 @@ pub fn login_button(cx: Scope) -> impl IntoView {
     view! { cx,
         <div class="big_button">
             <LoggedIn>
-                <a href="/api/auth/logout" rel="external">"Logout"</a>
+                <a href="/api/auth/logout" rel="external">{t!(cx, logout)}</a>
             </LoggedIn>
             <NotLoggedIn>
-                <a href=login_url rel="external">"Login"</a>
+                <a href=login_url rel="external">{t!(cx, login)}</a>
             </NotLoggedIn>
         </div>
     }

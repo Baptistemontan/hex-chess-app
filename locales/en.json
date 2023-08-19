@@ -1,0 +1,15 @@
+{
+    "login": "login",
+    "logout": "logout",
+    "random": "Random Game",
+    "custom": "Play with a friend",
+    "about": "About",
+    "not_logged_in": "You must be logged to play online",
+    "title": "Welcome to Hex Chess!",
+    "not_found": "Not Found",
+    "waiting": "Waiting for Opponent ...",
+    "creating": "Game is being created ...",
+    "copy_link": "Copy Link",
+    "english_flag_icon_alt": "British flag, icon to switch language to english",
+    "french_flag_icon_alt": "French flag, icon to switch language to french"
+}

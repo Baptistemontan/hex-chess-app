@@ -1,5 +1,6 @@
 use crate::components::auth::LoggedIn;
 use crate::components::board::SoloBoard;
+use crate::t;
 use leptos::*;
 use leptos_meta::*;
 
@@ -18,17 +19,17 @@ pub fn HomePage(cx: Scope) -> impl IntoView {
 
     view! { cx,
         <Title text="Hex Chess | Home"/>
-        <h1 class="title">"Welcome to Hex chess!"</h1>
+        <h1 class="title">{t!(cx, title)}</h1>
         <div class="board">
             <SoloBoard/>
         </div>
         <LoggedIn>
             <div class="link_to_games">
                 <div on:click=move |_| set_redirect.set(Some("random")) class="big_button">
-                    <p>"Random Game"</p>
+                    <p>{t!(cx, random)}</p>
                 </div>
                 <div on:click=move |_| set_redirect.set(Some("custom")) class="big_button">
-                    <p>"Invite Friend"</p>
+                    <p>{t!(cx, custom)}</p>
                 </div>
             </div>
         </LoggedIn>

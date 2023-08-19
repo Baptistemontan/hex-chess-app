@@ -2,6 +2,7 @@ mod home_page;
 mod not_found;
 pub mod play;
 
+use crate::i18n::Locales;
 use home_page::HomePage;
 use leptos::*;
 use leptos_meta::*;
@@ -17,12 +18,14 @@ pub fn App(cx: Scope) -> impl IntoView {
     // Provides context that manages stylesheets, titles, meta tags, etc.
     provide_meta_context(cx);
 
+    leptos_i18n::provide_i18n_context::<Locales>(cx);
+
     view! { cx,
         // injects a stylesheet into the document <head>
         // id=leptos means cargo-leptos will hot-reload this stylesheet
         <Stylesheet id="leptos" href="/pkg/hex-chess-app.css"/>
+        <Link rel="manifest" href="/manifest.json"/>
         <Meta name="description" content="Website to play hexagonal chess, solo or with friends." />
-        <Html lang="en" />
         <AuthentificationContext>
             <Router>
                 <Layout>
