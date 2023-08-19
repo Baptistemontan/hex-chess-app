@@ -40,6 +40,12 @@ web-sys = { version = "0.3.64", optional = true, features = [
   "Clipboard",
 ] }
 rand = { version = "0.8.5", optional = true }
+sqlx = { version = "0.7.1", features = [
+  "postgres",
+  "runtime-async-std-native-tls",
+  "chrono",
+], optional = true }
+chrono = { version = "0.4.26", optional = true }
 # instant = { version = "0.1", optional = true, default-features = false }
 
 [features]
@@ -65,6 +71,8 @@ ssr = [
   "dep:dotenvy",
   "dep:reqwest",
   "dep:rand",
+  "dep:sqlx",
+  "dep:chrono",
   "leptos/ssr",
   "leptos_meta/ssr",
   "leptos_router/ssr",
