@@ -1,7 +1,8 @@
 use std::rc::Rc;
 
-use crate::t;
+use crate::i18n::i18n_context;
 use leptos::*;
+use leptos_i18n::t;
 
 #[derive(Clone, Copy, Debug)]
 pub struct IsLoggedIn(pub Resource<(), bool>);
@@ -70,12 +71,14 @@ pub fn NotLoggedIn(cx: Scope, children: ChildrenFn) -> impl IntoView {
 
 #[component]
 pub fn CheckLoggedIn(cx: Scope, children: ChildrenFn) -> impl IntoView {
+    let i18n = i18n_context(cx);
+
     view! { cx,
         <LoggedIn>
             {children(cx)}
         </LoggedIn>
         <NotLoggedIn>
-            <h1>{t!(cx, not_logged_in)}</h1>
+            <h1>{t!(i18n, not_logged_in)}</h1>
         </NotLoggedIn>
     }
 }

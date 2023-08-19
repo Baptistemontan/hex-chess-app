@@ -1,7 +1,8 @@
 use leptos::*;
 use leptos_meta::*;
 
-use crate::t;
+use crate::i18n::i18n_context;
+use leptos_i18n::t;
 
 /// 404 - Not Found
 #[component]
@@ -20,8 +21,10 @@ pub fn NotFound(cx: Scope) -> impl IntoView {
         resp.set_status(actix_web::http::StatusCode::NOT_FOUND);
     }
 
+    let i18n = i18n_context(cx);
+
     view! { cx,
         <Title text="Hex Chess | Not Found"/>
-        <h1>{t!(cx, not_found)}</h1>
+        <h1>{t!(i18n, not_found)}</h1>
     }
 }

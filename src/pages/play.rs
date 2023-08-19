@@ -1,8 +1,9 @@
 use crate::components::auth::CheckLoggedIn;
 use crate::components::board::MultiBoard;
+use crate::i18n::i18n_context;
 use crate::server::board::GameEvent;
-use crate::t;
 use leptos::*;
+use leptos_i18n::t;
 use leptos_meta::*;
 use leptos_router::*;
 
@@ -10,6 +11,7 @@ use leptos_router::*;
 pub fn WaitingRandom(cx: Scope) -> impl IntoView {
     let navigate = leptos_router::use_navigate(cx);
     let events = GameEventStream::new(cx, &GameEventKind::Random);
+    let i18n = i18n_context(cx);
 
     events.listen(cx, move |event| {
         if let GameEvent::GameStart { game_id, .. } = event {
@@ -20,7 +22,7 @@ pub fn WaitingRandom(cx: Scope) -> impl IntoView {
     view! { cx,
         <Title text="Hex Chess | Waiting for opponent..."/>
         <CheckLoggedIn>
-            <p>{t!(cx, waiting)}</p>
+            <p>{t!(i18n, waiting)}</p>
         </CheckLoggedIn>
     }
 }
@@ -29,6 +31,7 @@ pub fn WaitingRandom(cx: Scope) -> impl IntoView {
 pub fn WaitingCustom(cx: Scope) -> impl IntoView {
     let navigate = leptos_router::use_navigate(cx);
     let events = GameEventStream::new(cx, &GameEventKind::Custom);
+    let i18n = i18n_context(cx);
 
     events.listen(cx, move |event| {
         if let GameEvent::CustomCreated { game_id } = event {
@@ -39,7 +42,7 @@ pub fn WaitingCustom(cx: Scope) -> impl IntoView {
     view! { cx,
         <Title text="Hex Chess | Creating custom game..."/>
         <CheckLoggedIn>
-            <p>{t!(cx, creating)}</p>
+            <p>{t!(i18n, creating)}</p>
         </CheckLoggedIn>
     }
 }
@@ -47,6 +50,7 @@ pub fn WaitingCustom(cx: Scope) -> impl IntoView {
 #[component]
 pub fn WaitingCustomWithId(cx: Scope) -> impl IntoView {
     let params = use_params_map(cx);
+    let i18n = i18n_context(cx);
 
     let render = move |cx: Scope| {
         params.get().get("game_id").cloned().map(move |game_id| {
@@ -67,7 +71,7 @@ pub fn WaitingCustomWithId(cx: Scope) -> impl IntoView {
 
             view! { cx,
                 <div on:click=on_copy class="big_button">
-                    <p>{t!(cx, copy_link)}</p>
+                    <p>{t!(i18n, copy_link)}</p>
                 </div>
             }
         })
